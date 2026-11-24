@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Resource, Settings, Task } from "@/lib/types";
+import type { Client, Resource, Settings, Task } from "@/lib/types";
 import {
   DAILY_PASTE_TITLE,
   DAILY_REPORT_TITLE,
@@ -42,6 +42,8 @@ type Ctx = {
   settings: Settings | null;
   tasks: Task[];
   resources: Resource[];
+  clients: Client[];
+  reloadClients: () => Promise<void>;
   today: string;
   saveTask: (t: TaskInput) => Promise<boolean>;
   deleteTask: (id: string) => Promise<void>;
@@ -69,6 +71,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [today, setToday] = useState<string>(() => todayInTz("Asia/Manila"));
   const ensuring = useRef(false);
 
@@ -102,6 +105,15 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     setResources(data as Resource[]);
   }, [supabase, fail]);
 
+  const reloadClients = useCallback(async () => {
+    const { data, error } = await supabase.from("clients").select("*").order("name", { ascending: true });
+    if (error) {
+      fail("Couldn't load clients", error.message);
+      return;
+    }
+    setClients(data as Client[]);
+  }, [supabase, fail]);
+
   // First load: settings (created with the starting links on first ever sign-in), tasks, links.
   useEffect(() => {
     let cancelled = false;
@@ -128,13 +140,13 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       setSettings(s as Settings);
       setToday(todayInTz((s as Settings).timezone));
-      await Promise.all([loadTasks(), loadResources()]);
+      await Promise.all([loadTasks(), loadResources(), reloadClients()]);
       if (!cancelled) setReady(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [supabase, fail, loadTasks, loadResources]);
+  }, [supabase, fail, loadTasks, loadResources, reloadClients]);
 
   // Keep "today" correct if the app stays open past midnight in the chosen time zone.
   useEffect(() => {
@@ -323,6 +335,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     settings,
     tasks,
     resources,
+    clients,
+    reloadClients,
     today,
     saveTask,
     deleteTask,

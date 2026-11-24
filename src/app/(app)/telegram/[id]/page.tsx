@@ -1,0 +1,260 @@
+"use client";
+
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAppData } from "@/components/AppData";
+import { createClient } from "@/lib/supabase/client";
+import { formatDateTime, zonedToUtc, utcToZonedInput } from "@/lib/core";
+import { extractScores } from "@/lib/erika";
+import { enqueueAnalysis, useAnalysisState } from "@/lib/analysisQueue";
+import type { Client, ClientMessage, ReplyDraft, ScoreRow } from "@/lib/types";
+
+export default function ClientChat() {
+  const { id } = useParams<{ id: string }>();
+  const { settings, reloadClients } = useAppData();
+  const supabase = useMemo(() => createClient(), []);
+  const tz = settings?.timezone || "Asia/Manila";
+  const aiState = useAnalysisState(id);
+
+  const [client, setClient] = useState<Client | null>(null);
+  const [msgs, setMsgs] = useState<ClientMessage[]>([]);
+  const [drafts, setDrafts] = useState<ReplyDraft[]>([]);
+  const [scores, setScores] = useState<ScoreRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [text, setText] = useState("");
+  const [when, setWhen] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+
+  const load = useCallback(async () => {
+    const [c, m, d, s] = await Promise.all([
+      supabase.from("clients").select("*").eq("id", id).maybeSingle(),
+      supabase.from("client_messages").select("*").eq("client_id", id).order("sent_at", { ascending: true }),
+      supabase.from("reply_drafts").select("*").eq("client_id", id).order("created_at", { ascending: true }),
+      supabase.from("score_history").select("*").eq("client_id", id).order("recorded_at", { ascending: false }),
+    ]);
+    const e = c.error || m.error || d.error || s.error;
+    if (e) setErr(e.message);
+    setClient((c.data as Client) || null);
+    setMsgs((m.data as ClientMessage[]) || []);
+    setDrafts((d.data as ReplyDraft[]) || []);
+    setScores((s.data as ScoreRow[]) || []);
+    setLoaded(true);
+  }, [supabase, id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+  useEffect(() => {
+    if (aiState === "idle") load();
+  }, [aiState, load]);
+
+  const activeDraft = [...drafts].reverse().find((d) => d.kind === "reply" && (d.status === "draft" || d.status === "copied"));
+  const lastOut = msgs.filter((m) => m.direction === "outgoing").reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
+  const unreplied = msgs.filter((m) => m.direction === "incoming" && new Date(m.created_at).getTime() > lastOut);
+  const failed = unreplied.find((m) => m.analysis_error);
+  const needsAnalysis = unreplied.length > 0 && !unreplied.every((m) => m.analyzed) && aiState === "idle";
+
+  async function savePaste(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    const sentAt = zonedToUtc(when, tz);
+    if (!text.trim()) return setErr("Paste the client's message first.");
+    if (!sentAt) return setErr("Enter the date and time the client originally sent it.");
+    if (sentAt.getTime() > Date.now() + 5 * 60000) return setErr("That date and time is in the future. Check it.");
+    setSaving(true);
+    const { error } = await supabase.from("client_messages").insert({
+      client_id: id,
+      direction: "incoming",
+      body: text.trim(),
+      sent_at: sentAt.toISOString(),
+      session_date: when.slice(0, 10),
+    });
+    if (error) {
+      setSaving(false);
+      return setErr(error.message);
+    }
+    // Scores: only what the client wrote, exactly as written.
+    const sc = extractScores(text);
+    if (Object.keys(sc).length) {
+      await supabase.from("score_history").insert({ client_id: id, peace: sc.peace ?? null, life: sc.life ?? null, body: sc.body ?? null, recorded_at: sentAt.toISOString() });
+    }
+    const patch: Record<string, unknown> = { needs_reply: true };
+    if (!client?.last_message_at || sentAt.getTime() > new Date(client.last_message_at).getTime()) patch.last_message_at = sentAt.toISOString();
+    if (sc.peace !== undefined) patch.peace_score = sc.peace;
+    if (sc.life !== undefined) patch.life_score = sc.life;
+    if (sc.body !== undefined) patch.body_score = sc.body;
+    await supabase.from("clients").update(patch).eq("id", id);
+    setText("");
+    setWhen("");
+    setSaving(false);
+    await load();
+    enqueueAnalysis(id);
+    reloadClients();
+  }
+
+  async function copyDraft(d: ReplyDraft) {
+    try {
+      await navigator.clipboard.writeText(d.body);
+    } catch {
+      setErr("Couldn't copy automatically. Select the text and copy it.");
+      return;
+    }
+    if (d.status === "draft") {
+      await supabase.from("reply_drafts").update({ status: "copied", copied_at: new Date().toISOString() }).eq("id", d.id);
+      await load();
+    }
+  }
+
+  async function markSent(d: ReplyDraft) {
+    const now = new Date().toISOString();
+    const { error } = await supabase.from("client_messages").insert({ client_id: id, direction: "outgoing", body: d.body, sent_at: now, session_date: now.slice(0, 10), analyzed: true });
+    if (error) return setErr(error.message);
+    await supabase.from("reply_drafts").update({ status: "sent", sent_at: now }).eq("id", d.id);
+    await supabase.from("clients").update({ needs_reply: false, last_response_at: now }).eq("id", id);
+    await load();
+    reloadClients();
+  }
+
+  async function saveEdit(d: ReplyDraft) {
+    if (!editText.trim()) return;
+    await supabase.from("reply_drafts").update({ body: editText.trim(), edited: true, status: "draft" }).eq("id", d.id);
+    setEditing(null);
+    await load();
+  }
+
+  async function michaelResponded() {
+    await supabase.from("clients").update({ needs_michael: false, michael_resolved_at: new Date().toISOString() }).eq("id", id);
+    await load();
+    reloadClients();
+  }
+
+  if (!loaded) return <p className="sub">Loading…</p>;
+  if (!client) return <div className="banner error">Client not found. <Link href="/telegram">Back to clients</Link></div>;
+
+  const latest = [...msgs].reverse().find((m) => m.analysis)?.analysis || null;
+  const items = [
+    ...msgs.map((m) => ({ t: new Date(m.sent_at).getTime(), kind: "msg" as const, m })),
+  ].sort((a, b) => a.t - b.t);
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <p className="sub"><Link href="/telegram">← All clients</Link></p>
+          <h1>{client.name}</h1>
+          <p className="sub">{client.telegram_username ? `@${client.telegram_username} · ` : ""}{client.status}</p>
+        </div>
+      </div>
+      {err && <div className="banner error" role="alert">{err}</div>}
+
+      {client.needs_michael && (
+        <div className="banner error">
+          <b>Waiting for Michael:</b> {client.michael_reason}{" "}
+          <button className="btn" onClick={michaelResponded}>Mark Michael responded</button>
+        </div>
+      )}
+
+      <div className="chatgrid">
+        <section className="card">
+          <div className="thread" aria-label="Conversation">
+            {items.length === 0 && !activeDraft && <p className="empty">No messages yet. Paste the client&apos;s first message below.</p>}
+            {items.map(({ m }) => (
+              <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : "out"}`}>
+                {m.body}
+                <span className="when">
+                  {m.direction === "incoming" ? "Sent " : "Replied "}{formatDateTime(m.sent_at, tz)}
+                  {m.direction === "incoming" && ` · pasted ${formatDateTime(m.created_at, tz)}`}
+                </span>
+              </div>
+            ))}
+            {activeDraft && (
+              <div className="bubble draft">
+                {editing === activeDraft.id ? (
+                  <>
+                    <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={4} style={{ width: "100%" }} aria-label="Edit draft" />
+                    <div className="actions">
+                      <button className="btn primary" onClick={() => saveEdit(activeDraft)}>Save draft</button>
+                      <button className="btn" onClick={() => setEditing(null)}>Cancel</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {activeDraft.body}
+                    <span className="when">
+                      <span className={`chip ${activeDraft.status === "copied" ? "today" : ""}`}>{activeDraft.status === "copied" ? "Copied, not sent yet" : "Draft"}</span>
+                      {activeDraft.edited && " · edited"}
+                      {activeDraft.ai_flags.includes("template_fallback") && " · standard wording used"}
+                    </span>
+                    <div className="actions">
+                      <button className="btn" onClick={() => copyDraft(activeDraft)}>Copy</button>
+                      <button className="btn primary" onClick={() => markSent(activeDraft)}>Mark as Sent</button>
+                      <button className="btn" onClick={() => { setEditing(activeDraft.id); setEditText(activeDraft.body); }}>Edit</button>
+                      <button className="btn" onClick={() => enqueueAnalysis(id)} disabled={aiState !== "idle"}>Regenerate</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {aiState !== "idle" && <p className="sub" role="status">{aiState === "queued" ? "Waiting for its turn…" : "Reading the message and writing a draft…"}</p>}
+          {aiState === "idle" && (failed || needsAnalysis) && (
+            <div className="banner error" role="alert">
+              {failed?.analysis_error || "This message hasn't been analysed yet."}{" "}
+              <button className="btn" onClick={() => enqueueAnalysis(id)}>Retry</button>
+            </div>
+          )}
+
+          <form onSubmit={savePaste} style={{ marginTop: 16, display: "grid", gap: 10 }}>
+            <div className="field">
+              <label htmlFor="paste">Paste the client&apos;s message</label>
+              <textarea id="paste" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste exactly what the client wrote" />
+            </div>
+            <div className="field">
+              <label htmlFor="paste-when">When the client sent it ({tz})</label>
+              <input id="paste-when" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} max={utcToZonedInput(new Date().toISOString(), tz)} />
+            </div>
+            <div><button className="btn primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save message"}</button></div>
+          </form>
+        </section>
+
+        <aside style={{ display: "grid", gap: 16 }}>
+          <section className="card">
+            <div className="panel-title">Latest analysis</div>
+            {latest ? (
+              <div className="kv">
+                <div className="meta">
+                  <span className={`chip ${latest.urgency === "URGENT" ? "high" : latest.urgency === "MEDIUM PRIORITY" ? "today" : "ok"}`}>{latest.urgency}</span>
+                  {latest.tags.map((t) => <span key={t} className="chip auto">{t}</span>)}
+                </div>
+                <p>{latest.summary}</p>
+                <p className="sub"><b>For Michael:</b> {latest.internal_report}</p>
+              </div>
+            ) : <p className="sub">Analysis appears here after a message is saved.</p>}
+          </section>
+          <section className="card">
+            <div className="panel-title">Scores (as the client wrote them)</div>
+            <div className="scores">
+              <div className="score"><b>{client.peace_score ?? "–"}</b><span>Peace</span></div>
+              <div className="score"><b>{client.life_score ?? "–"}</b><span>Life</span></div>
+              <div className="score"><b>{client.body_score ?? "–"}</b><span>Body</span></div>
+            </div>
+            {scores.length > 0 && (
+              <ul className="list" style={{ marginTop: 10 }}>
+                {scores.map((s) => (
+                  <li key={s.id} className="sub" style={{ fontSize: 13 }}>
+                    {formatDateTime(s.recorded_at, tz)}: Peace {s.peace ?? "–"}, Life {s.life ?? "–"}, Body {s.body ?? "–"}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </aside>
+      </div>
+    </>
+  );
+}

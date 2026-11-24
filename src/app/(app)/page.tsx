@@ -17,6 +17,28 @@ function Soon({ title, icon, stage, text }: { title: string; icon: string; stage
   );
 }
 
+function ClientList({ title, icon, empty, list }: { title: string; icon: string; empty: string; list: { id: string; name: string; sub: string; urgency: string | null }[] }) {
+  return (
+    <section className="card">
+      <div className="card-head"><h2><Icon name={icon} /> {title}</h2><span className="count">{list.length}</span></div>
+      {list.length === 0 ? (
+        <p className="empty">{empty}</p>
+      ) : (
+        <ul className="list">
+          {list.slice(0, 8).map((c) => (
+            <li key={c.id}>
+              <Link href={`/telegram/${c.id}`} className="client-row" style={{ gridTemplateColumns: "1fr auto" }}>
+                <span><span className="task-title">{c.name}</span><span className="task-desc" style={{ display: "block" }}>{c.sub}</span></span>
+                {c.urgency && <span className={`chip ${c.urgency === "URGENT" ? "high" : c.urgency === "MEDIUM PRIORITY" ? "today" : "ok"}`}>{c.urgency}</span>}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function timeAgo(iso: string | null): string {
   if (!iso) return "";
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -28,7 +50,7 @@ function timeAgo(iso: string | null): string {
 }
 
 export default function Dashboard() {
-  const { settings, tasks, today } = useAppData();
+  const { settings, tasks, clients, today } = useAppData();
   const [editing, setEditing] = useState<Task | null | undefined>(undefined);
   if (!settings) return null;
 
@@ -165,7 +187,14 @@ export default function Dashboard() {
             </ul>
           )}
         </section>
-        <Soon title="Client Overview" icon="users" stage="Coming in Stage 2" text="Your Telegram clients, who needs a reply and who is waiting for Michael will show here." />
+        <section className="card">
+          <div className="card-head"><h2><Icon name="users" /> Client Overview</h2><Link href="/telegram" className="btn">Open clients</Link></div>
+          <div className="scores">
+            <div className="score"><b>{clients.filter((c) => c.status === "Active").length}</b><span>Active</span></div>
+            <div className="score"><b>{clients.filter((c) => c.needs_reply).length}</b><span>Need a reply</span></div>
+            <div className="score"><b>{clients.filter((c) => c.needs_michael).length}</b><span>Waiting for Michael</span></div>
+          </div>
+        </section>
       </div>
 
       <div className="grid">
@@ -188,8 +217,8 @@ export default function Dashboard() {
             <ul className="list">{reminders.map((r) => <li key={r} className="task" style={{ gridTemplateColumns: "1fr" }}>{r}</li>)}</ul>
           )}
         </section>
-        <Soon title="Telegram messages needing a response" icon="telegram" stage="Coming in Stage 2" text="Clients whose latest message has no sent reply will appear here, linking straight to their chat." />
-        <Soon title="Waiting for Michael's personal response" icon="users" stage="Coming in Stage 2" text="Your Michael Action Required list will appear here." />
+        <ClientList title="Telegram messages needing a response" icon="telegram" empty="Every client message has a sent reply." list={clients.filter((c) => c.needs_reply).map((c) => ({ id: c.id, name: c.name, sub: c.summary || "New message", urgency: c.urgency }))} />
+        <ClientList title="Waiting for Michael's personal response" icon="users" empty="Nothing waiting for Michael." list={clients.filter((c) => c.needs_michael).map((c) => ({ id: c.id, name: c.name, sub: c.michael_reason || "Needs your personal response", urgency: c.urgency }))} />
         <Soon title="Instagram leads needing follow-up" icon="instagram" stage="Coming in Stage 4" text="Only leads genuinely due a follow-up under the Sales Bible rules will appear here." />
         <Soon title="Upcoming calls and weekly KPIs" icon="kpi" stage="Coming in Stage 5" text="Booked discovery calls, attendance and your four KPIs for the week." />
       </div>

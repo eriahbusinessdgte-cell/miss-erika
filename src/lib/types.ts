@@ -35,3 +35,63 @@ export type Resource = {
   notes: string;
   active: boolean;
 };
+
+export type Client = {
+  id: string;
+  name: string;
+  telegram_username: string;
+  status: "Active" | "Paused" | "Inactive" | "Archived";
+  tags: string[];
+  summary: string;
+  urgency: "URGENT" | "MEDIUM PRIORITY" | "NOT URGENT" | null;
+  last_message_at: string | null;
+  last_response_at: string | null;
+  peace_score: number | null;
+  life_score: number | null;
+  body_score: number | null;
+  followup_status: string;
+  needs_reply: boolean;
+  needs_michael: boolean;
+  michael_reason: string;
+  michael_flagged_at: string | null;
+  michael_resolved_at: string | null;
+  notes: string;
+  created_at: string;
+};
+
+export type ClientMessage = {
+  id: string;
+  client_id: string;
+  direction: "incoming" | "outgoing";
+  body: string;
+  sent_at: string;
+  session_date: string | null;
+  analyzed: boolean;
+  analysis: import("./erika").Analysis | null;
+  analysis_error: string | null;
+  created_at: string;
+};
+
+export type ReplyDraft = {
+  id: string;
+  client_id: string;
+  kind: "reply" | "checkin";
+  body: string;
+  original_body: string;
+  status: "draft" | "copied" | "sent" | "superseded";
+  edited: boolean;
+  ai_flags: string[];
+  source_message_ids: string[];
+  copied_at: string | null;
+  sent_at: string | null;
+  created_at: string;
+};
+
+export type ScoreRow = {
+  id: string;
+  client_id: string;
+  peace: number | null;
+  life: number | null;
+  body: number | null;
+  recorded_at: string;
+};

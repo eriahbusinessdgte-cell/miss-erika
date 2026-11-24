@@ -117,3 +117,42 @@ export function compareTasks(
   if (pa !== pb) return pa - pb;
   return a.title.localeCompare(b.title);
 }
+
+/** Offset (ms) of a time zone from UTC at a given instant. */
+function tzOffsetMs(tz: string, at: Date): number {
+  const f = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const p = Object.fromEntries(f.formatToParts(at).map((x) => [x.type, x.value]));
+  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+  return asUtc - Math.floor(at.getTime() / 1000) * 1000;
+}
+
+/** Turn a wall-clock time typed as "YYYY-MM-DDTHH:mm" in the chosen time zone into a real UTC instant. */
+export function zonedToUtc(local: string, tz: string): Date | null {
+  const m = local.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const guess = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  let t = guess - tzOffsetMs(tz, new Date(guess));
+  t = guess - tzOffsetMs(tz, new Date(t)); // second pass handles daylight-saving edges
+  const d = new Date(t);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** The same instant as "YYYY-MM-DDTHH:mm" wall-clock time in the chosen time zone. */
+export function utcToZonedInput(iso: string, tz: string): string {
+  const d = new Date(iso);
+  const f = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  });
+  const p = Object.fromEntries(f.formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+export function formatDateTime(iso: string | null | undefined, tz: string): string {
+  if (!iso) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).format(new Date(iso));
+}
