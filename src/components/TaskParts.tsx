@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { Task } from "@/lib/types";
 import { bucketOf, prettyDate, type Recurrence } from "@/lib/core";
 import { useAppData } from "@/components/AppData";
+import { Icon } from "@/components/Icon";
 
 /** Where clicking a task takes you. Manual tasks stay in the task list. */
 export function taskHref(t: Task): string | null {
@@ -15,14 +16,14 @@ export function taskHref(t: Task): string | null {
   return null;
 }
 
-export function TaskRow({ task, onEdit }: { task: Task; onEdit?: (t: Task) => void }) {
+export function TaskRow({ task, onEdit, hero }: { task: Task; onEdit?: (t: Task) => void; hero?: boolean }) {
   const { setTaskStatus, today } = useAppData();
   const bucket = bucketOf(task, today);
   const done = task.status === "Done";
   const href = taskHref(task);
 
   return (
-    <li className={`task ${done ? "done" : ""}`}>
+    <li className={`task ${done ? "done" : ""} ${hero && !done ? "hero" : ""}`}>
       <input
         className="check"
         type="checkbox"
@@ -40,6 +41,7 @@ export function TaskRow({ task, onEdit }: { task: Task; onEdit?: (t: Task) => vo
         ) : (
           <span className="task-title">{task.title}</span>
         )}
+        {hero && task.description && !done && <div className="task-desc">{task.description}</div>}
         <div className="meta">
           {bucket === "overdue" && <span className="chip over">Overdue · {prettyDate(task.due_date!)}</span>}
           {bucket === "today" && <span className="chip today">Due today</span>}
@@ -51,8 +53,10 @@ export function TaskRow({ task, onEdit }: { task: Task; onEdit?: (t: Task) => vo
           {task.assignee && task.assignee !== "Erika" && <span className="chip">{task.assignee}</span>}
         </div>
       </div>
-      {onEdit && task.kind === "manual" && (
-        <button className="btn small" onClick={() => onEdit(task)}>Edit</button>
+      {hero && href && !done ? (
+        <Link className="btn primary" href={href}>Start Task <Icon name="arrow" size={16} /></Link>
+      ) : (
+        onEdit && task.kind === "manual" && <button className="btn small" onClick={() => onEdit(task)}>Edit</button>
       )}
     </li>
   );

@@ -2,42 +2,76 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { AppDataProvider, useAppData } from "@/components/AppData";
+import { Icon } from "@/components/Icon";
+import { bucketOf } from "@/lib/core";
 
 const NAV = [
-  { href: "/", label: "Dashboard", stage: null },
-  { href: "/instagram", label: "Instagram Leads", stage: "Stage 4" },
-  { href: "/telegram", label: "Telegram Clients", stage: "Stage 2" },
-  { href: "/tasks", label: "Tasks", stage: null },
-  { href: "/kpis", label: "KPIs & Weekly Reports", stage: "Stage 5" },
-  { href: "/resources", label: "Resources & Booking Links", stage: null },
-  { href: "/settings", label: "Settings", stage: null },
+  { href: "/", label: "Dashboard", icon: "dashboard", stage: null },
+  { href: "/telegram", label: "Telegram Clients", icon: "telegram", stage: "Stage 2" },
+  { href: "/instagram", label: "Instagram Leads", icon: "instagram", stage: "Stage 4" },
+  { href: "/tasks", label: "Tasks", icon: "tasks", stage: null },
+  { href: "/kpis", label: "KPIs & Weekly Reports", icon: "kpi", stage: "Stage 5" },
+  { href: "/resources", label: "Resources & Booking Links", icon: "link", stage: null },
+  { href: "/settings", label: "Settings", icon: "settings", stage: null },
 ];
 
 function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { ready, error, clearError, signOut, settings } = useAppData();
+  const { ready, error, clearError, signOut, settings, tasks, today } = useAppData();
+  const [menu, setMenu] = useState(false);
+
+  const needAttention = tasks.filter((t) => {
+    const b = bucketOf(t, today);
+    return b === "overdue" || b === "today";
+  }).length;
+  const name = settings?.display_name || "Erika";
 
   return (
     <div className="shell">
       <aside className="rail">
         <div className="brand">
-          Miss Erika
-          <small>{settings ? `Support for ${settings.manager_name}` : "Loading…"}</small>
+          <div className="logo" aria-hidden="true">M</div>
+          <div>
+            <div className="brand-name">Miss Erika</div>
+            <div className="brand-sub">Your work assistant</div>
+          </div>
         </div>
         <nav className="nav" aria-label="Main">
           {NAV.map((n) => {
             const active = n.href === "/" ? pathname === "/" : pathname.startsWith(n.href);
             return (
               <Link key={n.href} href={n.href} aria-current={active ? "page" : undefined}>
-                <span>{n.label}</span>
-                {n.stage && <span className="soon">{n.stage}</span>}
+                <Icon name={n.icon} />
+                <span className="label">{n.label}</span>
+                                {n.href === "/tasks" && needAttention > 0 && <span className="badge">{needAttention}</span>}
               </Link>
             );
           })}
         </nav>
-        <div className="rail-foot">
-          <button className="linklike" onClick={signOut}>Sign out</button>
+
+        <div className="quick">
+          <h3>Quick Actions</h3>
+          <Link className="quick-btn" href="/tasks?new=1"><Icon name="plus" /> Add Task</Link>
+          <Link className="quick-btn" href="/resources?new=1"><Icon name="link" /> Add Booking Link</Link>
+          <Link className="quick-btn" href={`/reports/${today}`}><Icon name="report" /> View Reports</Link>
+        </div>
+
+        <div className="me">
+          {menu && (
+            <div className="me-menu">
+              <button onClick={signOut}><Icon name="logout" /> Sign out</button>
+            </div>
+          )}
+          <button className="me-btn" onClick={() => setMenu((m) => !m)} aria-expanded={menu}>
+            <span className="avatar">{name.slice(0, 1).toUpperCase()}</span>
+            <span style={{ flex: 1 }}>
+              <div className="me-name">{name}</div>
+              <div className="me-role">Assistant</div>
+            </span>
+            <Icon name="chevron" size={16} />
+          </button>
         </div>
       </aside>
       <main className="main">

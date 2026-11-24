@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAppData } from "@/components/AppData";
 import { TaskForm, TaskRow } from "@/components/TaskParts";
 import type { Task } from "@/lib/types";
@@ -13,6 +13,13 @@ export default function TasksPage() {
   const [status, setStatus] = useState("any");
   const [priority, setPriority] = useState("any");
   const [q, setQ] = useState("");
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "1") {
+      setEditing(null);
+      window.history.replaceState(null, "", "/tasks");
+    }
+  }, []);
 
   const shown = useMemo(() => {
     return tasks

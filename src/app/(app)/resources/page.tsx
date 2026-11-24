@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppData } from "@/components/AppData";
 import type { Resource } from "@/lib/types";
 
@@ -12,6 +12,13 @@ export default function ResourcesPage() {
   const [editing, setEditing] = useState<Draft | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "1") {
+      setEditing({ ...EMPTY });
+      window.history.replaceState(null, "", "/resources");
+    }
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
