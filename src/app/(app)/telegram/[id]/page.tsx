@@ -114,6 +114,34 @@ export default function ClientChat() {
     reloadClients();
   }
 
+  async function deleteMessage(m: ClientMessage) {
+    const what = m.direction === "incoming" ? "this client message" : m.sender === "michael" ? "Michael's reply" : "your reply";
+    if (!window.confirm(`Delete ${what} from the conversation? This can't be undone.${m.direction === "outgoing" && m.sender !== "michael" ? " The draft it came from goes back to Draft so you can send it again." : ""}`)) return;
+    setErr(null);
+    const { error } = await supabase.from("client_messages").delete().eq("id", m.id);
+    if (error) return setErr(error.message);
+    if (m.direction === "outgoing" && m.sender !== "michael") {
+      const d = drafts.find((x) => x.status === "sent" && x.body === m.body);
+      if (d) await supabase.from("reply_drafts").update({ status: "draft", sent_at: null }).eq("id", d.id);
+    }
+    if (m.direction === "incoming") {
+      await supabase.from("reply_drafts").update({ status: "superseded" }).eq("client_id", id).in("status", ["draft", "copied"]).contains("source_message_ids", [m.id]);
+      await supabase.from("score_history").delete().eq("client_id", id).eq("recorded_at", m.sent_at);
+    }
+    // Work the client's status out again from what is left.
+    const rest = msgs.filter((x) => x.id !== m.id);
+    const real = (x: ClientMessage) => !x.history_only;
+    const lastOut = rest.filter((x) => x.direction === "outgoing" && real(x)).reduce((t, x) => Math.max(t, new Date(x.created_at).getTime()), 0);
+    const waiting = rest.some((x) => x.direction === "incoming" && real(x) && new Date(x.created_at).getTime() > lastOut);
+    const latest = (dir: string) => rest.filter((x) => x.direction === dir).reduce<string | null>((t, x) => (!t || x.sent_at > t ? x.sent_at : t), null);
+    const left = scores.filter((s) => s.recorded_at !== m.sent_at).sort((a, b) => (a.recorded_at < b.recorded_at ? 1 : -1))[0];
+    const patch: Record<string, unknown> = { needs_reply: waiting, last_message_at: latest("incoming"), last_response_at: latest("outgoing") };
+    if (m.direction === "incoming") Object.assign(patch, { peace_score: left?.peace ?? null, life_score: left?.life ?? null, body_score: left?.body ?? null });
+    await supabase.from("clients").update(patch).eq("id", id);
+    await load();
+    reloadClients();
+  }
+
   async function copyDraft(d: ReplyDraft) {
     try {
       await navigator.clipboard.writeText(d.body);
@@ -219,6 +247,7 @@ export default function ClientChat() {
               <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : m.sender === "michael" ? "out michael" : "out"}`}>
                 {m.sender === "michael" && <span className="who">Michael replied personally</span>}
                 {m.body}
+                <span className="when"><button type="button" className="btn" style={{ padding: "1px 8px", fontSize: 11 }} aria-label="Delete this message" onClick={() => deleteMessage(m)}>Delete message</button></span>
                 {m.direction === "incoming" && m.history_only && (
                   <span className="when">
                     Saved to history only ·{" "}

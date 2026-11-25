@@ -127,6 +127,30 @@ export default function LeadPage() {
     setMText(""); setMWhen(""); setMOpen(false);
   }
 
+  async function deleteMessage(m: IgMessage) {
+    const mine = m.direction === "outgoing" && m.sender !== "michael" && m.kind !== "michael";
+    if (!window.confirm(`Delete ${m.direction === "incoming" ? "this message from the lead" : m.sender === "michael" ? "Michael's reply" : "your message"}? This can't be undone.${mine ? " The draft it came from goes back to Draft so you can send it again." : ""}`)) return;
+    setErr(null);
+    const { error } = await supabase.from("ig_messages").delete().eq("id", m.id);
+    if (error) return setErr(error.message);
+    const p: Record<string, unknown> = {};
+    if (mine) {
+      const d = drafts.find((x) => x.status === "sent" && x.body === m.body);
+      if (d) {
+        await supabase.from("ig_drafts").update({ status: "draft" }).eq("id", d.id);
+        if (d.kind === "followup") p.followups_sent = Math.max(0, lead!.followups_sent - 1);
+      }
+    }
+    const rest = msgs.filter((x) => x.id !== m.id);
+    const real = rest.filter((x) => !x.history_only);
+    const outs = real.filter((x) => x.direction === "outgoing");
+    const lastOut = outs.reduce((t, x) => Math.max(t, new Date(x.created_at).getTime()), 0);
+    p.needs_reply = real.some((x) => x.direction === "incoming" && new Date(x.created_at).getTime() > lastOut);
+    p.last_inbound_at = rest.filter((x) => x.direction === "incoming").reduce<string | null>((t, x) => (!t || x.sent_at > t ? x.sent_at : t), null);
+    if (m.direction === "outgoing") p.outreach_sent_at = outs.reduce<string | null>((t, x) => (!t || x.sent_at > t ? x.sent_at : t), null);
+    await patchLead(p);
+  }
+
   async function copyDraft(d: IgDraft) {
     try { await navigator.clipboard.writeText(d.body); } catch { return setErr("Couldn't copy automatically. Select the text and copy it."); }
     if (d.status === "draft") { await supabase.from("ig_drafts").update({ status: "copied", copied_at: new Date().toISOString() }).eq("id", d.id); await load(); }
@@ -199,6 +223,7 @@ export default function LeadPage() {
               <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : m.sender === "michael" ? "out michael" : "out"}`}>
                 {m.sender === "michael" && <span className="who">Michael replied personally</span>}
                 {m.body}
+                <span className="when"><button type="button" className="btn" style={{ padding: "1px 8px", fontSize: 11 }} aria-label="Delete this message" onClick={() => deleteMessage(m)}>Delete message</button></span>
                 {m.direction === "incoming" && m.history_only && (
                   <span className="when">
                     Saved to history only ·{" "}
