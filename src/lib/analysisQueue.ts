@@ -39,6 +39,7 @@ async function run(clientId: string, endpoint: string): Promise<Result> {
 const key = (endpoint: string, id: string) => `${endpoint}:${id}`;
 export const TELEGRAM = "/api/telegram/analyze";
 export const INSTAGRAM = "/api/instagram/analyze";
+export const CHECKIN = "/api/telegram/checkin";
 
 export function enqueueAnalysis(clientId: string, endpoint: string = TELEGRAM): Promise<Result> {
   const k = key(endpoint, clientId);

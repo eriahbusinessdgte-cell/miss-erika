@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { useAppData } from "@/components/AppData";
 import { Icon } from "@/components/Icon";
 import { TaskForm, TaskRow } from "@/components/TaskParts";
@@ -52,6 +53,10 @@ function timeAgo(iso: string | null): string {
 
 export default function Dashboard() {
   const { settings, tasks, clients, leads, today } = useAppData();
+  const [quietOpen, setQuietOpen] = useState<{ id: string; client_id: string; note: string }[]>([]);
+  useEffect(() => {
+    createClient().from("quiet_flags").select("id,client_id,note,status,resolved_at").eq("status", "flagged").then(({ data }) => setQuietOpen(((data as { id: string; client_id: string; note: string; resolved_at: string | null }[]) || []).filter((f) => !f.resolved_at)));
+  }, [clients]);
   const [editing, setEditing] = useState<Task | null | undefined>(undefined);
   if (!settings) return null;
 
@@ -75,10 +80,10 @@ export default function Dashboard() {
   const otherDone = otherToday.filter((t) => t.status === "Done").length;
 
   const dow = weekdayOf(today);
-  const reminders: string[] = [];
-  if (dow === 1) reminders.push("Monday: check in with every active client individually.");
-  if (dow === 2) reminders.push("Tuesday: flag any quiet clients to Michael by the end of today.");
-  if (dow === 5) reminders.push("Friday: send the weekly KPI report.");
+  const reminders: { text: string; href: string }[] = [];
+  if (dow === 1) reminders.push({ text: "Monday: check in with every active Telegram client individually.", href: "/kpis/checkins" });
+  if (dow === 2) reminders.push({ text: "Tuesday: review quiet clients and flag them to Michael by the end of today.", href: "/kpis/quiet" });
+  if (dow === 5) reminders.push({ text: "Friday: copy and send the weekly KPI report to Michael.", href: "/kpis" });
 
   const recent = tasks
     .filter((t) => t.status === "Done" && t.completed_at)
@@ -215,12 +220,13 @@ export default function Dashboard() {
           {reminders.length === 0 ? (
             <p className="empty">No weekly reminders today.</p>
           ) : (
-            <ul className="list">{reminders.map((r) => <li key={r} className="task" style={{ gridTemplateColumns: "1fr" }}>{r}</li>)}</ul>
+            <ul className="list">{reminders.map((r) => <li key={r.text} className="task" style={{ gridTemplateColumns: "1fr" }}><Link href={r.href}>{r.text}</Link></li>)}</ul>
           )}
         </section>
         <ClientList title="Telegram messages needing a response" icon="telegram" empty="Every client message has a sent reply." list={clients.filter((c) => c.needs_reply).map((c) => ({ id: c.id, name: c.name, sub: c.summary || "New message", urgency: c.urgency }))} />
         <ClientList title="Waiting for Michael's personal response" icon="users" empty="Nothing waiting for Michael." list={[
           ...clients.filter((c) => c.needs_michael).map((c) => ({ id: c.id, name: c.name, sub: c.michael_reason || "Needs your personal response", urgency: c.urgency })),
+          ...quietOpen.map((f) => ({ id: f.client_id, name: `${clients.find((c) => c.id === f.client_id)?.name || "Client"} (quiet client)`, sub: f.note || "Flagged as quiet", urgency: null })),
           ...leads.filter((l) => l.needs_michael).map((l) => ({ id: l.id, name: `${l.name} (Instagram)`, sub: l.michael_reason || "Needs Michael", urgency: null, href: `/instagram/${l.id}` })),
         ]} />
         <section className="card">

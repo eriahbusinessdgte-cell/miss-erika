@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAppData } from "@/components/AppData";
 import { Icon } from "@/components/Icon";
 import { createClient } from "@/lib/supabase/client";
-import { formatDateTime } from "@/lib/core";
+import { formatDateTime, zonedToUtc } from "@/lib/core";
 import { ALL_STAGES, SOURCE_LABEL, followupState, openerFor, type Source } from "@/lib/ig";
 import type { IgLead } from "@/lib/types";
 
@@ -18,7 +18,7 @@ export default function InstagramLeads() {
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [f, setF] = useState({ name: "", handle: "", source: "comment" as Source, may_know_michael: false, michael_sent_link: false, notes: "" });
+  const [f, setF] = useState({ name: "", handle: "", source: "comment" as Source, may_know_michael: false, michael_sent_link: false, notes: "", engaged: "" });
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("new") === "1") {
@@ -55,6 +55,7 @@ export default function InstagramLeads() {
         handle: f.handle.trim().replace(/^@/, ""),
         source: f.source,
         notes: f.notes,
+        engaged_at: f.engaged ? zonedToUtc(f.engaged, tz)?.toISOString() ?? null : null,
         may_know_michael: f.may_know_michael,
         michael_sent_link: f.michael_sent_link,
         needs_michael: flagged,
@@ -164,6 +165,9 @@ export default function InstagramLeads() {
                 <option value="new_follow">{SOURCE_LABEL.new_follow}</option>
               </select>
             </div>
+            {f.source !== "new_follow" && (
+              <div className="field"><label htmlFor="a-when">When did they comment or reply? ({tz}, optional)</label><input id="a-when" type="datetime-local" value={f.engaged} onChange={(e) => setF({ ...f, engaged: e.target.value })} /></div>
+            )}
             <label className="checkrow"><input type="checkbox" checked={f.may_know_michael} onChange={(e) => setF({ ...f, may_know_michael: e.target.checked })} /> They might be a friend or someone Michael knows</label>
             <label className="checkrow"><input type="checkbox" checked={f.michael_sent_link} onChange={(e) => setF({ ...f, michael_sent_link: e.target.checked })} /> Michael may already have sent them a link</label>
             <div className="field"><label htmlFor="a-notes">Notes (optional)</label><textarea id="a-notes" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></div>

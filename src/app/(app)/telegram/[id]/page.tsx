@@ -7,7 +7,7 @@ import { useAppData } from "@/components/AppData";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateTime, zonedToUtc, utcToZonedInput } from "@/lib/core";
 import { extractScores } from "@/lib/erika";
-import { enqueueAnalysis, useAnalysisState } from "@/lib/analysisQueue";
+import { CHECKIN, enqueueAnalysis, useAnalysisState } from "@/lib/analysisQueue";
 import type { Client, ClientMessage, ReplyDraft, ScoreRow } from "@/lib/types";
 
 export default function ClientChat() {
@@ -55,7 +55,7 @@ export default function ClientChat() {
     if (aiState === "idle") load();
   }, [aiState, load]);
 
-  const activeDraft = [...drafts].reverse().find((d) => d.kind === "reply" && (d.status === "draft" || d.status === "copied"));
+  const activeDraft = [...drafts].reverse().find((d) => d.status === "draft" || d.status === "copied");
   const lastOut = msgs.filter((m) => m.direction === "outgoing").reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
   const unreplied = msgs.filter((m) => m.direction === "incoming" && new Date(m.created_at).getTime() > lastOut);
   const failed = unreplied.find((m) => m.analysis_error);
@@ -208,7 +208,7 @@ export default function ClientChat() {
                   <>
                     {activeDraft.body}
                     <span className="when">
-                      <span className={`chip ${activeDraft.status === "copied" ? "today" : ""}`}>{activeDraft.status === "copied" ? "Copied, not sent yet" : "Draft"}</span>
+                      <span className={`chip ${activeDraft.status === "copied" ? "today" : ""}`}>{activeDraft.status === "copied" ? "Copied, not sent yet" : activeDraft.kind === "checkin" ? "Monday check-in draft" : "Draft"}</span>
                       {activeDraft.edited && " · edited"}
                       {activeDraft.ai_flags.includes("template_fallback") && " · standard wording used"}
                     </span>
@@ -216,7 +216,7 @@ export default function ClientChat() {
                       <button className="btn" onClick={() => copyDraft(activeDraft)}>Copy</button>
                       <button className="btn primary" onClick={() => markSent(activeDraft)}>Mark as Sent</button>
                       <button className="btn" onClick={() => { setEditing(activeDraft.id); setEditText(activeDraft.body); }}>Edit</button>
-                      <button className="btn" onClick={() => enqueueAnalysis(id)} disabled={aiState !== "idle"}>Regenerate</button>
+                      <button className="btn" onClick={() => enqueueAnalysis(id, activeDraft.kind === "checkin" ? CHECKIN : undefined)} disabled={aiState !== "idle" && activeDraft.kind !== "checkin"}>Regenerate</button>
                     </div>
                   </>
                 )}

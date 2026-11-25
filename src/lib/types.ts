@@ -133,6 +133,7 @@ export type IgLead = {
   outreach_sent_at: string | null;
   followups_sent: number;
   followups_stopped: boolean;
+  engaged_at: string | null;
   link_sent_at: string | null;
   created_at: string;
 };
@@ -142,3 +143,8 @@ export type IgMessage = { id: string; lead_id: string; direction: "incoming" | "
 export type IgDraft = { id: string; lead_id: string; kind: "opener" | "reply" | "followup"; followup_number: number | null; body: string; status: "draft" | "copied" | "sent" | "superseded"; edited: boolean; contains_link: boolean; created_at: string };
 
 export type Knowledge = { id: string; key: string; title: string; body: string; position: number };
+
+export type IgCall = { id: string; lead_id: string | null; name: string; handle: string; source: string; booked_on: string | null; call_at: string | null; status: "Pending" | "Attended" | "Did Not Attend" | "Cancelled"; notes: string; created_at: string };
+export type Checkin = { id: string; client_id: string; week_start: string; mode: "checkin" | "acknowledgement"; draft_id: string | null; created_at: string };
+export type QuietFlag = { id: string; client_id: string; week_start: string; status: "flagged" | "dismissed"; note: string; flagged_at: string; resolved_at: string | null };
+export type KpiReportRow = { id: string; week_start: string; version: number; body: string; created_at: string };
