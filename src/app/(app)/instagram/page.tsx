@@ -164,8 +164,8 @@ export default function InstagramLeads() {
                 <option value="new_follow">{SOURCE_LABEL.new_follow}</option>
               </select>
             </div>
-            <label className="check"><input type="checkbox" checked={f.may_know_michael} onChange={(e) => setF({ ...f, may_know_michael: e.target.checked })} /> They might be a friend or someone Michael knows</label>
-            <label className="check"><input type="checkbox" checked={f.michael_sent_link} onChange={(e) => setF({ ...f, michael_sent_link: e.target.checked })} /> Michael may already have sent them a link</label>
+            <label className="checkrow"><input type="checkbox" checked={f.may_know_michael} onChange={(e) => setF({ ...f, may_know_michael: e.target.checked })} /> They might be a friend or someone Michael knows</label>
+            <label className="checkrow"><input type="checkbox" checked={f.michael_sent_link} onChange={(e) => setF({ ...f, michael_sent_link: e.target.checked })} /> Michael may already have sent them a link</label>
             <div className="field"><label htmlFor="a-notes">Notes (optional)</label><textarea id="a-notes" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></div>
             <div className="row">
               <button className="btn primary" type="submit" disabled={busy}>{busy ? "Adding…" : "Add lead"}</button>
