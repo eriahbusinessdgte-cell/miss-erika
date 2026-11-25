@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Client, Resource, Settings, Task } from "@/lib/types";
+import type { Client, IgLead, Resource, Settings, Task } from "@/lib/types";
 import {
   DAILY_PASTE_TITLE,
   DAILY_REPORT_TITLE,
@@ -43,6 +43,8 @@ type Ctx = {
   tasks: Task[];
   resources: Resource[];
   clients: Client[];
+  leads: IgLead[];
+  reloadLeads: () => Promise<void>;
   reloadClients: () => Promise<void>;
   today: string;
   saveTask: (t: TaskInput) => Promise<boolean>;
@@ -72,6 +74,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [leads, setLeads] = useState<IgLead[]>([]);
   const [today, setToday] = useState<string>(() => todayInTz("Asia/Manila"));
   const ensuring = useRef(false);
 
@@ -114,6 +117,15 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     setClients(data as Client[]);
   }, [supabase, fail]);
 
+  const reloadLeads = useCallback(async () => {
+    const { data, error } = await supabase.from("ig_leads").select("*").order("created_at", { ascending: false });
+    if (error) {
+      fail("Couldn't load Instagram leads", error.message);
+      return;
+    }
+    setLeads(data as IgLead[]);
+  }, [supabase, fail]);
+
   // First load: settings (created with the starting links on first ever sign-in), tasks, links.
   useEffect(() => {
     let cancelled = false;
@@ -140,13 +152,13 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       setSettings(s as Settings);
       setToday(todayInTz((s as Settings).timezone));
-      await Promise.all([loadTasks(), loadResources(), reloadClients()]);
+      await Promise.all([loadTasks(), loadResources(), reloadClients(), reloadLeads()]);
       if (!cancelled) setReady(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [supabase, fail, loadTasks, loadResources, reloadClients]);
+  }, [supabase, fail, loadTasks, loadResources, reloadClients, reloadLeads]);
 
   // Keep "today" correct if the app stays open past midnight in the chosen time zone.
   useEffect(() => {
@@ -337,6 +349,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     resources,
     clients,
     reloadClients,
+    leads,
+    reloadLeads,
     today,
     saveTask,
     deleteTask,

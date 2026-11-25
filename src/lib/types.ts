@@ -63,6 +63,7 @@ export type ClientMessage = {
   id: string;
   client_id: string;
   direction: "incoming" | "outgoing";
+  sender: "erika" | "michael";
   body: string;
   sent_at: string;
   session_date: string | null;
@@ -113,3 +114,31 @@ export type DailyReport = {
   sent_at: string | null;
   created_at: string;
 };
+
+export type IgLead = {
+  id: string;
+  name: string;
+  handle: string;
+  source: "comment" | "story_reply" | "new_follow";
+  door: "dream" | "okay_fit" | "wrong_fit" | null;
+  stage: string;
+  summary: string;
+  notes: string;
+  needs_reply: boolean;
+  needs_michael: boolean;
+  michael_reason: string;
+  may_know_michael: boolean;
+  michael_sent_link: boolean;
+  last_inbound_at: string | null;
+  outreach_sent_at: string | null;
+  followups_sent: number;
+  followups_stopped: boolean;
+  link_sent_at: string | null;
+  created_at: string;
+};
+
+export type IgMessage = { id: string; lead_id: string; direction: "incoming" | "outgoing"; sender: "erika" | "michael"; body: string; sent_at: string; kind: string; analyzed: boolean; analysis_error: string | null; created_at: string };
+
+export type IgDraft = { id: string; lead_id: string; kind: "opener" | "reply" | "followup"; followup_number: number | null; body: string; status: "draft" | "copied" | "sent" | "superseded"; edited: boolean; contains_link: boolean; created_at: string };
+
+export type Knowledge = { id: string; key: string; title: string; body: string; position: number };

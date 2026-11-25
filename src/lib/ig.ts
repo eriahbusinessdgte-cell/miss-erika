@@ -1,0 +1,197 @@
+// Instagram rules from the Reborn DM Sales Bible. Pure functions only (no imports) so they can be tested.
+// The Bible's full text lives in the database (table "knowledge"); only the hard rules are enforced here in code.
+
+export const STAGES = ["Open", "Fact Find", "Qualify", "Offer"] as const;
+export const ALL_STAGES = ["Open", "Fact Find", "Qualify", "Offer", "Call link sent", "Booked", "Not ready", "Handed to Michael"] as const;
+export type Source = "comment" | "story_reply" | "new_follow";
+export const SOURCE_LABEL: Record<Source, string> = { comment: "Commented “peace”", story_reply: "Replied “peace” to a story", new_follow: "New follower" };
+
+export function firstName(n: string) {
+  return n.trim().split(/\s+/)[0] || n;
+}
+
+/** The three fixed openers from the Bible (Stage 1). */
+export function openerFor(source: Source, name: string): string {
+  const n = firstName(name);
+  if (source === "comment")
+    return `Hi ${n}, I see you commented 'peace' on my video. What was it about that video that spoke to you and what are you looking to change in your life? Tell me what's been happening, then we can discuss what solutions there are for you.`;
+  if (source === "story_reply")
+    return `Hi ${n}, I saw you replied 'peace' to my story. What was it about that story that spoke to you, and what are you looking to change in your life? Tell me what's been happening, then we can discuss what solutions there are for you.`;
+  return `Hey ${n} 👋 Thanks for following me. I always like to know a little about the people who find their way onto my page. What brought you here? Are you currently working through something in your life, or are you mainly here to learn, grow and see what resonates with you?`;
+}
+
+/** The three fixed follow-up touches (24 hours, 3 days, day 5). */
+export function followupText(num: 1 | 2 | 3, name: string): string {
+  const n = firstName(name);
+  if (num === 1) return `Hey ${n}, are you still there? Did you get a chance to look at this?`;
+  if (num === 2) return `Hi ${n}, just checking this reached you 🙏`;
+  return `${n}, is everything okay? I'm here whenever you're ready.`;
+}
+
+const HOUR = 3600_000;
+export const FOLLOWUP_AFTER_HOURS = [24, 72, 120];
+
+export type LeadFlow = {
+  source: Source;
+  stage: string;
+  followups_sent: number;
+  followups_stopped: boolean;
+  outreach_sent_at: string | null;
+  last_inbound_at: string | null;
+};
+
+export type FollowupState =
+  | { state: "none"; why: string }
+  | { state: "waiting"; number: 1 | 2 | 3; dueAt: number }
+  | { state: "due"; number: 1 | 2 | 3; dueAt: number }
+  | { state: "finished"; why: string };
+
+/** Which follow-up (if any) is due. New followers never get one. Never more than three. */
+export function followupState(l: LeadFlow, now: number): FollowupState {
+  if (l.source === "new_follow") return { state: "none", why: "New followers get one message only." };
+  if (["Booked", "Not ready", "Handed to Michael"].includes(l.stage)) return { state: "none", why: "This lead is closed or with Michael." };
+  if (l.followups_stopped || l.followups_sent >= 3) return { state: "finished", why: "Three follow-ups done. Let it go with love." };
+  if (!l.outreach_sent_at) return { state: "none", why: "Nothing has been sent yet." };
+  const sent = new Date(l.outreach_sent_at).getTime();
+  if (l.last_inbound_at && new Date(l.last_inbound_at).getTime() > sent) return { state: "none", why: "They replied. No follow-up needed." };
+  const number = (l.followups_sent + 1) as 1 | 2 | 3;
+  const dueAt = sent + FOLLOWUP_AFTER_HOURS[l.followups_sent] * HOUR;
+  return now >= dueAt ? { state: "due", number, dueAt } : { state: "waiting", number, dueAt };
+}
+
+// ---------- Things only Michael answers ----------
+
+const HANDOVER: { re: RegExp; why: string }[] = [
+  { re: /\bguarantee\w*|money[- ]back|refund\w*/i, why: "Asked about a guarantee. Michael answers this one." },
+  { re: /\b(vip|elite)\b/i, why: "Asked about VIP or Elite." },
+  { re: /\b(speak(ing|er)?\b.*\b(event|booking|book|engagement|conference|talk|keynote|summit)|(book|invite|hire)\w*\b.*\bmichael\b.*\b(speak|talk|event)|keynote|speaking (request|booking|engagement))/i, why: "Speaking booking request." },
+];
+
+export function detectHandover(text: string): string | null {
+  for (const h of HANDOVER) if (h.re.test(text)) return h.why;
+  return null;
+}
+
+// ---------- Safety check for drafts written as Michael ----------
+
+const BLOCKED: { re: RegExp; why: string }[] = [
+  { re: /\bvoice (note|message)s?\b|\bsend you a voice\b/i, why: "mentions a voice note" },
+  { re: /\bfree (call|session|coaching|consult\w*|one[- ]to[- ]one|1[- ]?1)\b/i, why: "offers something free that we don't give away" },
+  { re: /\bguarantee\w*\b/i, why: "talks about a guarantee" },
+  { re: /\byou should (try|do|take|stop|start|breathe|meditate)\b|\btry (to )?(breath|meditat|journal|rest|relax)\w*/i, why: "coaches in the DMs" },
+  { re: /\b(caused by|is caused|that's why you have)\b/i, why: "says 'caused by' (must be 'often connected to')" },
+  { re: /\b(limited spots?|only \d+ spots?|last chance|act now|hurry|don't miss out|before it'?s too late)\b/i, why: "uses pressure" },
+  { re: /\b(it'?s )?(great|good|amazing|incredible) value\b/i, why: "softens the price" },
+  { re: /as an ai\b|language model/i, why: "sounds robotic" },
+];
+
+export function checkMichaelReply(text: string, ctx: { stage: string; allowedUrls: string[] }): string[] {
+  const problems: string[] = [];
+  const t = text.trim();
+  if (!t) problems.push("empty reply");
+  for (const r of BLOCKED) if (r.re.test(t) && !problems.includes(r.why)) problems.push(r.why);
+  if ((ctx.stage === "Open" || ctx.stage === "Fact Find") && /\$\s?\d|\b(price|cost)\b.*\b(is|are)\b.*\d/i.test(t)) problems.push("brings up money before listening and mirroring");
+  const urls = t.match(/https?:\/\/[^\s)]+/g) || [];
+  const clean = (u: string) => u.replace(/[.,!?]+$/, "");
+  const ok = ctx.allowedUrls.map(clean);
+  for (const u of urls) if (!ok.includes(clean(u))) problems.push(`link not in Resources: ${clean(u)}`);
+  if (t.length > 1400) problems.push("too long");
+  return problems;
+}
+
+export function placeholdersIn(text: string): string[] {
+  return Array.from(new Set(text.match(/\[[^\]\n]{1,40}\]/g) || []));
+}
+
+export function whatsappLine(name: string, handle: string): string {
+  const h = handle.trim().replace(/^@/, "");
+  return `Sent the call link to ${name.trim()}${h ? ` (@${h})` : ""}.`;
+}
+
+// ---------- Which parts of the Bible to send to the AI (keeps each call small for the free plan) ----------
+
+export function pickSections(stage: string, latestText: string): string[] {
+  const keys = ["rules", "never_do"];
+  const t = latestText.toLowerCase();
+  if (stage === "Open") keys.push("fact_find");
+  if (stage === "Fact Find") keys.push("fact_find");
+  if (stage === "Qualify") keys.push("qualify", "offer");
+  if (stage === "Offer" || stage === "Call link sent") keys.push("offer", "moments");
+  if (/(price|cost|how much|afford|money|expensive|\$|think about|partner|husband|wife|8 weeks|eight weeks|how long|how much time|later|not now|browsing|nervous|unsure)/i.test(t)) keys.push("moments", "objections");
+  if (/(i'?ve tried|nothing works|pain|ache|symptom|anxiety|anxious|fear|panic|diagnos)/i.test(t)) keys.push("fact_find");
+  return Array.from(new Set(keys));
+}
+
+export const IG_SYSTEM = `You write Instagram DM replies as Michael Watson (Reborn with Michael) for his assistant Erika to copy and send. Follow the DM Sales Bible sections you are given exactly. Write the way Michael talks: casual, warm, human, short. Never sound like a sales script. Do not mention that you are an AI or that Erika is involved.
+
+Return ONE JSON object only (no markdown) with these keys:
+- "summary": 1-2 plain sentences on who this person is and what they said (third person).
+- "door": "dream", "okay_fit" or "wrong_fit"
+- "stage": the stage this lead is now in after their latest message: "Open", "Fact Find", "Qualify" or "Offer". Move forward one stage at a time. Never skip a stage unless "ready_to_buy" is true.
+- "ready_to_buy": true only if they have followed Michael for years and are asking how to join.
+- "needs_michael": true if you are not sure how to answer, they may know Michael, they ask something not covered in the Bible, or the Bible says to hand over. Then "reply" must be "".
+- "michael_reason": short reason when needs_michael is true, otherwise "".
+- "reply": the next DM to send, adapted from the Bible templates with the person's real details. Use their first name. Always end any link with a question inviting them to come back. If you are offering a call time, leave [day] and [time] exactly as written for Erika to fill from Calendly. Never invent a link, price, date or fact: only use links from the RESOURCES list and prices written in the Bible. Do not coach or teach. Do not bring up money before the Qualify stage unless the Bible's price moment applies. Never mention voice notes.`;
+
+export type IgPromptMsg = { direction: "incoming" | "outgoing"; body: string; when: string };
+
+export function buildIgPrompt(a: {
+  name: string;
+  source: Source;
+  stage: string;
+  sections: { title: string; body: string }[];
+  resources: { name: string; url: string; purpose: string }[];
+  context: IgPromptMsg[];
+  fresh: IgPromptMsg[];
+  retryNote?: string;
+}): string {
+  const line = (m: IgPromptMsg, max: number) => `[${m.when}] ${m.direction === "incoming" ? a.name : "Michael"}: ${m.body.replace(/\s+/g, " ").trim().slice(0, max)}`;
+  return `BIBLE SECTIONS
+${a.sections.map((s) => `## ${s.title}\n${s.body}`).join("\n\n")}
+
+RESOURCES (the only links you may use)
+${a.resources.map((r) => `- ${r.name}: ${r.url} (${r.purpose})`).join("\n") || "(none)"}
+
+LEAD: ${a.name}. Came in as: ${SOURCE_LABEL[a.source]}. Current stage: ${a.stage}.
+
+EARLIER CONVERSATION (context only)
+${a.context.length ? a.context.map((m) => line(m, 350)).join("\n") : "(none)"}
+
+NEW MESSAGES FROM THEM (reply to these)
+${a.fresh.map((m) => line(m, 1500)).join("\n")}
+${a.retryNote ? `\nYour previous draft broke the rules (${a.retryNote}). Rewrite it so it does not.\n` : ""}
+Return the JSON object now.`;
+}
+
+export type IgAnalysis = {
+  summary: string;
+  door: "dream" | "okay_fit" | "wrong_fit" | null;
+  stage: string;
+  ready_to_buy: boolean;
+  needs_michael: boolean;
+  michael_reason: string;
+  reply: string;
+};
+
+const s = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+
+export function parseIgAnalysis(raw: unknown, currentStage: string): IgAnalysis | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const summary = s(o.summary, 500);
+  if (!summary) return null;
+  const needs = o.needs_michael === true || o.needs_michael === "true";
+  const reply = needs ? "" : s(o.reply, 1600);
+  if (!needs && !reply) return null;
+  const d = String(o.door ?? "");
+  const door = d === "dream" || d === "okay_fit" || d === "wrong_fit" ? d : null;
+  const ready = o.ready_to_buy === true || o.ready_to_buy === "true";
+  const cur = (STAGES as readonly string[]).indexOf(currentStage);
+  let stage = currentStage;
+  if (cur >= 0) {
+    const want = (STAGES as readonly string[]).indexOf(String(o.stage));
+    if (want > cur) stage = ready ? "Offer" : STAGES[Math.min(cur + 1, 3)];
+    else stage = currentStage;
+  }
+  return { summary, door, stage, ready_to_buy: ready, needs_michael: needs, michael_reason: needs ? s(o.michael_reason, 300) || "Not sure how to answer. Needs you." : "", reply };
+}

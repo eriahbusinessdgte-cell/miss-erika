@@ -125,7 +125,7 @@ ALWAYS write a reply, even when Michael must respond personally. In that case Er
 
 Match the reply to what the client actually said. Positive update: a short, genuine acknowledgement and that you will share it with Michael. Question for Michael: acknowledge, say you'll pass it on. Logistics you cannot answer: say you'll check and come back.`;
 
-export type PromptMessage = { direction: "incoming" | "outgoing"; body: string; when: string };
+export type PromptMessage = { direction: "incoming" | "outgoing"; sender?: "erika" | "michael"; body: string; when: string };
 
 function clip(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + "…" : s;
@@ -138,7 +138,7 @@ export function buildAnalysisPrompt(args: {
   retryNote?: string;
 }): string {
   const line = (m: PromptMessage, max: number) =>
-    `[${m.when}] ${m.direction === "incoming" ? "Client" : "Erika"}: ${clip(m.body.replace(/\s+/g, " ").trim(), max)}`;
+    `[${m.when}] ${m.direction === "incoming" ? "Client" : m.sender === "michael" ? "Michael (personally)" : "Erika"}: ${clip(m.body.replace(/\s+/g, " ").trim(), max)}`;
   const ctx = args.context.length
     ? args.context.map((m) => line(m, 400)).join("\n")
     : "(no earlier messages)";

@@ -6,6 +6,7 @@ import { useAppData } from "@/components/AppData";
 import { Icon } from "@/components/Icon";
 import { TaskForm, TaskRow } from "@/components/TaskParts";
 import type { Task } from "@/lib/types";
+import { followupState } from "@/lib/ig";
 import { bucketOf, compareTasks, greetingFor, prettyDate, weekdayOf } from "@/lib/core";
 
 function Soon({ title, icon, stage, text }: { title: string; icon: string; stage: string; text: string }) {
@@ -17,7 +18,7 @@ function Soon({ title, icon, stage, text }: { title: string; icon: string; stage
   );
 }
 
-function ClientList({ title, icon, empty, list }: { title: string; icon: string; empty: string; list: { id: string; name: string; sub: string; urgency: string | null }[] }) {
+function ClientList({ title, icon, empty, list }: { title: string; icon: string; empty: string; list: { id: string; name: string; sub: string; urgency: string | null; href?: string }[] }) {
   return (
     <section className="card">
       <div className="card-head"><h2><Icon name={icon} /> {title}</h2><span className="count">{list.length}</span></div>
@@ -27,7 +28,7 @@ function ClientList({ title, icon, empty, list }: { title: string; icon: string;
         <ul className="list">
           {list.slice(0, 8).map((c) => (
             <li key={c.id}>
-              <Link href={`/telegram/${c.id}`} className="client-row" style={{ gridTemplateColumns: "1fr auto" }}>
+              <Link href={c.href || `/telegram/${c.id}`} className="client-row" style={{ gridTemplateColumns: "1fr auto" }}>
                 <span><span className="task-title">{c.name}</span><span className="task-desc" style={{ display: "block" }}>{c.sub}</span></span>
                 {c.urgency && <span className={`chip ${c.urgency === "URGENT" ? "high" : c.urgency === "MEDIUM PRIORITY" ? "today" : "ok"}`}>{c.urgency}</span>}
               </Link>
@@ -50,7 +51,7 @@ function timeAgo(iso: string | null): string {
 }
 
 export default function Dashboard() {
-  const { settings, tasks, clients, today } = useAppData();
+  const { settings, tasks, clients, leads, today } = useAppData();
   const [editing, setEditing] = useState<Task | null | undefined>(undefined);
   if (!settings) return null;
 
@@ -218,8 +219,36 @@ export default function Dashboard() {
           )}
         </section>
         <ClientList title="Telegram messages needing a response" icon="telegram" empty="Every client message has a sent reply." list={clients.filter((c) => c.needs_reply).map((c) => ({ id: c.id, name: c.name, sub: c.summary || "New message", urgency: c.urgency }))} />
-        <ClientList title="Waiting for Michael's personal response" icon="users" empty="Nothing waiting for Michael." list={clients.filter((c) => c.needs_michael).map((c) => ({ id: c.id, name: c.name, sub: c.michael_reason || "Needs your personal response", urgency: c.urgency }))} />
-        <Soon title="Instagram leads needing follow-up" icon="instagram" stage="Coming in Stage 4" text="Only leads genuinely due a follow-up under the Sales Bible rules will appear here." />
+        <ClientList title="Waiting for Michael's personal response" icon="users" empty="Nothing waiting for Michael." list={[
+          ...clients.filter((c) => c.needs_michael).map((c) => ({ id: c.id, name: c.name, sub: c.michael_reason || "Needs your personal response", urgency: c.urgency })),
+          ...leads.filter((l) => l.needs_michael).map((l) => ({ id: l.id, name: `${l.name} (Instagram)`, sub: l.michael_reason || "Needs Michael", urgency: null, href: `/instagram/${l.id}` })),
+        ]} />
+        <section className="card">
+          <div className="card-head"><h2><Icon name="instagram" /> Instagram leads needing attention</h2></div>
+          {(() => {
+            const rows = leads
+              .map((l) => ({ l, fu: followupState(l, Date.now()) }))
+              .filter(({ l, fu }) => fu.state === "due" || l.needs_reply || l.needs_michael)
+              .slice(0, 8);
+            if (rows.length === 0) return <p className="empty">No leads need a reply or follow-up.</p>;
+            return (
+              <ul className="list">
+                {rows.map(({ l, fu }) => (
+                  <li key={l.id}>
+                    <Link href={`/instagram/${l.id}`} className="client-row" style={{ gridTemplateColumns: "1fr auto" }}>
+                      <span><span className="task-title">{l.name}</span><span className="task-desc" style={{ display: "block" }}>{l.stage}</span></span>
+                      <span className="meta">
+                        {fu.state === "due" && <span className="chip high">Follow-up {fu.number} due</span>}
+                        {l.needs_reply && <span className="chip today">Needs reply</span>}
+                        {l.needs_michael && <span className="chip high">Michael</span>}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
+        </section>
         <Soon title="Upcoming calls and weekly KPIs" icon="kpi" stage="Coming in Stage 5" text="Booked discovery calls, attendance and your four KPIs for the week." />
       </div>
 

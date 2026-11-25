@@ -14,12 +14,12 @@ const notify = () => {
   listeners.forEach((l) => l());
 };
 
-async function run(clientId: string): Promise<Result> {
-  queued.delete(clientId); // anything pasted from now on needs a fresh run
-  running.add(clientId);
+async function run(clientId: string, endpoint: string): Promise<Result> {
+  queued.delete(key(endpoint, clientId)); // anything pasted from now on needs a fresh run
+  running.add(key(endpoint, clientId));
   notify();
   try {
-    const res = await fetch("/api/telegram/analyze", {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ clientId }),
@@ -31,22 +31,27 @@ async function run(clientId: string): Promise<Result> {
   } catch {
     return { ok: false, error: "Couldn't reach the server. Check your connection and press Retry." };
   } finally {
-    running.delete(clientId);
+    running.delete(key(endpoint, clientId));
     notify();
   }
 }
 
-export function enqueueAnalysis(clientId: string): Promise<Result> {
-  const existing = queued.get(clientId);
+const key = (endpoint: string, id: string) => `${endpoint}:${id}`;
+export const TELEGRAM = "/api/telegram/analyze";
+export const INSTAGRAM = "/api/instagram/analyze";
+
+export function enqueueAnalysis(clientId: string, endpoint: string = TELEGRAM): Promise<Result> {
+  const k = key(endpoint, clientId);
+  const existing = queued.get(k);
   if (existing) return existing; // a run for this client hasn't started yet and will include the new message
-  const p = chain.then(() => run(clientId));
-  queued.set(clientId, p);
+  const p = chain.then(() => run(clientId, endpoint));
+  queued.set(k, p);
   chain = p.catch(() => undefined);
   notify();
   return p;
 }
 
-export function useAnalysisState(clientId: string): "idle" | "queued" | "running" {
+export function useAnalysisState(clientId: string, endpoint: string = TELEGRAM): "idle" | "queued" | "running" {
   useSyncExternalStore(
     (cb) => {
       listeners.add(cb);
@@ -55,7 +60,8 @@ export function useAnalysisState(clientId: string): "idle" | "queued" | "running
     () => version,
     () => 0
   );
-  if (running.has(clientId)) return "running";
-  if (queued.has(clientId)) return "queued";
+  const k = key(endpoint, clientId);
+  if (running.has(k)) return "running";
+  if (queued.has(k)) return "queued";
   return "idle";
 }

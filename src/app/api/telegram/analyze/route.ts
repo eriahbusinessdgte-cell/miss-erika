@@ -16,7 +16,7 @@ import {
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-type Msg = { id: string; direction: "incoming" | "outgoing"; body: string; sent_at: string; created_at: string };
+type Msg = { id: string; direction: "incoming" | "outgoing"; sender: "erika" | "michael"; body: string; sent_at: string; created_at: string };
 
 // Reads the client's conversation, writes Erika's analysis and reply draft, and saves everything.
 export async function POST(req: Request) {
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
 
   const [{ data: client }, { data: msgsRaw }, { data: settings }] = await Promise.all([
     supabase.from("clients").select("*").eq("id", clientId).maybeSingle(),
-    supabase.from("client_messages").select("id,direction,body,sent_at,created_at").eq("client_id", clientId).order("sent_at", { ascending: true }),
+    supabase.from("client_messages").select("id,direction,sender,body,sent_at,created_at").eq("client_id", clientId).order("sent_at", { ascending: true }),
     supabase.from("settings").select("timezone").maybeSingle(),
   ]);
   if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "There are no new unanswered messages from this client." });
   }
   const freshIds = new Set(fresh.map((m) => m.id));
-  const toPrompt = (m: Msg): PromptMessage => ({ direction: m.direction, body: m.body, when: formatDateTime(m.sent_at, tz) });
+  const toPrompt = (m: Msg): PromptMessage => ({ direction: m.direction, sender: m.sender, body: m.body, when: formatDateTime(m.sent_at, tz) });
   const context = msgs.filter((m) => !freshIds.has(m.id)).slice(-12).map(toPrompt);
   const freshPrompt = fresh.map(toPrompt);
   const freshText = fresh.map((m) => m.body).join("\n");

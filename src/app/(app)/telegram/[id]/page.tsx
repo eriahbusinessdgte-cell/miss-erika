@@ -28,6 +28,9 @@ export default function ClientChat() {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [mOpen, setMOpen] = useState(false);
+  const [mText, setMText] = useState("");
+  const [mWhen, setMWhen] = useState("");
 
   const load = useCallback(async () => {
     const [c, m, d, s] = await Promise.all([
@@ -126,6 +129,25 @@ export default function ClientChat() {
     await load();
   }
 
+  async function saveMichael(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    const at = zonedToUtc(mWhen, tz);
+    if (!mText.trim()) return setErr("Paste what Michael wrote.");
+    if (!at) return setErr("Enter the date and time Michael sent it.");
+    if (at.getTime() > Date.now() + 5 * 60000) return setErr("That date and time is in the future. Check it.");
+    const { error } = await supabase.from("client_messages").insert({
+      client_id: id, direction: "outgoing", sender: "michael", body: mText.trim(), sent_at: at.toISOString(), session_date: mWhen.slice(0, 10), analyzed: true,
+    });
+    if (error) return setErr(error.message);
+    // Michael has answered personally: older unsent drafts are no longer needed and the flag is cleared.
+    await supabase.from("reply_drafts").update({ status: "superseded" }).eq("client_id", id).in("status", ["draft", "copied"]);
+    await supabase.from("clients").update({ needs_reply: false, needs_michael: false, michael_resolved_at: new Date().toISOString(), last_response_at: at.toISOString() }).eq("id", id);
+    setMText(""); setMWhen(""); setMOpen(false);
+    await load();
+    reloadClients();
+  }
+
   async function michaelResponded() {
     await supabase.from("clients").update({ needs_michael: false, michael_resolved_at: new Date().toISOString() }).eq("id", id);
     await load();
@@ -163,10 +185,11 @@ export default function ClientChat() {
           <div className="thread" aria-label="Conversation">
             {items.length === 0 && !activeDraft && <p className="empty">No messages yet. Paste the client&apos;s first message below.</p>}
             {items.map(({ m }) => (
-              <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : "out"}`}>
+              <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : m.sender === "michael" ? "out michael" : "out"}`}>
+                {m.sender === "michael" && <span className="who">Michael replied personally</span>}
                 {m.body}
                 <span className="when">
-                  {m.direction === "incoming" ? "Sent " : "Replied "}{formatDateTime(m.sent_at, tz)}
+                  {m.direction === "incoming" ? "Sent " : m.sender === "michael" ? "Sent " : "Replied "}{formatDateTime(m.sent_at, tz)}
                   {m.direction === "incoming" && ` · pasted ${formatDateTime(m.created_at, tz)}`}
                 </span>
               </div>
@@ -220,6 +243,18 @@ export default function ClientChat() {
             </div>
             <div><button className="btn primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save message"}</button></div>
           </form>
+
+          <div style={{ marginTop: 18, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
+            {!mOpen ? (
+              <button className="btn" onClick={() => setMOpen(true)}>Add Michael&apos;s response</button>
+            ) : (
+              <form onSubmit={saveMichael} style={{ display: "grid", gap: 10 }}>
+                <div className="field"><label htmlFor="m-text">What Michael replied to this client</label><textarea id="m-text" rows={4} value={mText} onChange={(e) => setMText(e.target.value)} placeholder="Paste Michael's reply exactly as he sent it" /></div>
+                <div className="field"><label htmlFor="m-when">When Michael sent it ({tz})</label><input id="m-when" type="datetime-local" value={mWhen} onChange={(e) => setMWhen(e.target.value)} max={utcToZonedInput(new Date().toISOString(), tz)} /></div>
+                <div className="row"><button className="btn primary" type="submit">Save Michael&apos;s response</button><button className="btn" type="button" onClick={() => setMOpen(false)}>Cancel</button></div>
+              </form>
+            )}
+          </div>
         </section>
 
         <aside style={{ display: "grid", gap: 16 }}>
