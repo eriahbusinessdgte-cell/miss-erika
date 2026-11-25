@@ -253,6 +253,7 @@ export default function LeadPage() {
                       <button className="btn primary" onClick={() => markSent(active)} disabled={holes.length > 0}>Mark as Sent</button>
                       <button className="btn" onClick={() => { setEditing(active.id); setEditText(active.body); }}>Edit</button>
                       <button className="btn" onClick={() => regenerate(active)} disabled={ai !== "idle" || (active.kind === "reply" && unreplied.length === 0)}>Regenerate</button>
+                      <button className="btn" onClick={async () => { if (!window.confirm("Discard this draft? It won't be sent or counted.")) return; await supabase.from("ig_drafts").update({ status: "superseded" }).eq("id", active.id); await load(); reloadLeads(); }}>Discard</button>
                     </div>
                   </>
                 )}

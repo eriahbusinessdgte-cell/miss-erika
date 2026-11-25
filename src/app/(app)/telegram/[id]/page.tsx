@@ -282,6 +282,7 @@ export default function ClientChat() {
                       <button className="btn" onClick={() => copyDraft(activeDraft)}>Copy</button>
                       <button className="btn primary" onClick={() => markSent(activeDraft)}>Mark as Sent</button>
                       <button className="btn" onClick={() => { setEditing(activeDraft.id); setEditText(activeDraft.body); }}>Edit</button>
+                      <button className="btn" onClick={async () => { if (!window.confirm("Discard this draft? It won't be sent or counted.")) return; await supabase.from("reply_drafts").update({ status: "superseded" }).eq("id", activeDraft.id); await load(); reloadClients(); }}>Discard</button>
                       <button className="btn" onClick={() => enqueueAnalysis(id, activeDraft.kind === "checkin" ? CHECKIN : undefined, activeDraft.kind === "checkin" ? undefined : msgs.find((m) => m.history_only && m.direction === "incoming" && activeDraft.source_message_ids?.includes(m.id))?.id)} disabled={aiState !== "idle" && activeDraft.kind !== "checkin"}>Regenerate</button>
                     </div>
                   </>
