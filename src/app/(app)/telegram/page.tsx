@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { addDays, formatDateTime, weekdayOf, zonedToUtc } from "@/lib/core";
 import type { Client } from "@/lib/types";
 import { isQuiet } from "@/lib/clients";
+import { TelegramImport } from "@/components/TelegramImport";
 
 function urgencyChip(u: Client["urgency"]) {
   if (u === "URGENT") return <span className="chip high">URGENT</span>;
@@ -23,6 +24,7 @@ export default function TelegramClients() {
   const [status, setStatus] = useState("current");
   const [flag, setFlag] = useState("all");
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [draft, setDraft] = useState({ name: "", telegram_username: "", status: "Active", notes: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -91,9 +93,12 @@ export default function TelegramClients() {
           <h1>Telegram Clients</h1>
           <p className="sub">Open a client to paste their messages into their own chat.</p>
         </div>
-        <button className="btn primary" onClick={() => { setErr(null); setAdding(true); }}>
-          <Icon name="plus" size={16} /> Add client
-        </button>
+        <div className="row">
+          <button className="btn" onClick={() => setImporting(true)}>Import from Telegram</button>
+          <button className="btn primary" onClick={() => { setErr(null); setAdding(true); }}>
+            <Icon name="plus" size={16} /> Add client
+          </button>
+        </div>
       </div>
 
       <div className="filters">
@@ -156,6 +161,7 @@ export default function TelegramClients() {
         )}
       </section>
 
+      {importing && <TelegramImport onClose={() => setImporting(false)} />}
       {adding && (
         <div className="modal-back" role="dialog" aria-modal="true" aria-label="Add client">
           <form className="modal" onSubmit={addClient}>
