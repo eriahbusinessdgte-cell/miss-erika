@@ -73,3 +73,9 @@ test("JSON is pulled out of messy model output", () => {
   assert.deepEqual(extractJson('Sure! {"a":2} done'), { a: 2 });
   assert.equal(extractJson("no json"), null);
 });
+
+import { checkUrls } from "../src/lib/erika.ts";
+test("links in Erika drafts must be saved Resources", () => {
+  assert.deepEqual(checkUrls("Here you go https://example.com/a.", ["https://example.com/a"]), []);
+  assert.equal(checkUrls("See https://made-up.com/x", ["https://example.com/a"]).length, 1);
+});

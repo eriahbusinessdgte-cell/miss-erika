@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { chatJson } from "@/lib/ai";
 import { formatDateTime } from "@/lib/core";
 import {
+  checkUrls,
   ERIKA_SYSTEM,
   buildAnalysisPrompt,
   checkErikaReply,
@@ -60,6 +61,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error });
   };
 
+  const { data: res } = await supabase.from("resources").select("url").eq("active", true);
+  const allowedUrls = (res || []).map((r: { url: string }) => r.url);
+
   // Ask the AI; if the reply breaks Erika's rules, ask once more, then fall back to a plain template.
   let analysis: Analysis | null = null;
   let retryNote: string | undefined;
@@ -73,7 +77,7 @@ export async function POST(req: Request) {
       continue;
     }
     analysis = parsed;
-    problems = checkErikaReply(parsed.reply);
+    problems = [...checkErikaReply(parsed.reply), ...checkUrls(parsed.reply, allowedUrls)];
     if (problems.length === 0) break;
     retryNote = problems.join(", ");
   }

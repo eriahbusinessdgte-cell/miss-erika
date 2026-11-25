@@ -94,6 +94,13 @@ export function checkErikaReply(text: string): string[] {
   return problems;
 }
 
+/** Any link in an Erika draft must be one saved under Resources. Never invented. */
+export function checkUrls(text: string, allowed: string[]): string[] {
+  const clean = (u: string) => u.replace(/[.,!?)]+$/, "");
+  const ok = allowed.map(clean);
+  return (text.match(/https?:\/\/[^\s]+/g) || []).map(clean).filter((u) => !ok.includes(u)).map((u) => `link not in Resources: ${u}`);
+}
+
 /** Plain, safe acknowledgement used only if the AI keeps breaking the rules. */
 export function fallbackReply(clientName: string, needsMichael: boolean): string {
   const n = firstName(clientName);

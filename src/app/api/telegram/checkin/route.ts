@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { chatJson } from "@/lib/ai";
 import { addDays, formatDateTime, todayInTz, weekdayOf } from "@/lib/core";
-import { checkErikaReply, extractJson, ERIKA_SYSTEM_CHECKIN, buildCheckinPrompt, type PromptMessage } from "@/lib/erika";
+import { checkUrls, checkErikaReply, extractJson, ERIKA_SYSTEM_CHECKIN, buildCheckinPrompt, type PromptMessage } from "@/lib/erika";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     if (!ai.ok) return NextResponse.json({ ok: false, error: ai.error });
     const parsed = extractJson(ai.text) as { reply?: unknown } | null;
     const reply = typeof parsed?.reply === "string" ? parsed.reply.trim() : "";
-    const problems = reply ? checkErikaReply(reply) : ["no reply written"];
+    const problems = reply ? [...checkErikaReply(reply), ...checkUrls(reply, [])] : ["no reply written"];
     if (reply && !/check(ing)? in on you/i.test(reply)) problems.push("missing the 'Michael asked me to also check in on you' line");
     if (reply && used.has(norm(reply))) problems.push("identical to another client's check-in");
     if (problems.length) { note = problems.join(", "); continue; }
