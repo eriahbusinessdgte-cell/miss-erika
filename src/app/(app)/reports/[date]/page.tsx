@@ -45,9 +45,9 @@ export default function DailyReportPage() {
     const start = prior.data && prior.data.length && prior.data[0].period_end ? new Date(prior.data[0].period_end).getTime() : null;
     setPrevEnd(start);
     const from = new Date(Math.min(dayStart.getTime(), start ?? Infinity)).toISOString();
-    const m = await supabase.from("client_messages").select("*").gte("created_at", from).lt("created_at", dayEnd.toISOString());
+    const m = await supabase.from("client_messages").select("*").eq("history_only", false).gte("created_at", from).lt("created_at", dayEnd.toISOString());
     // replies sent after the period still count for "pending" truthfulness, so also load the latest outgoing ones
-    const out = await supabase.from("client_messages").select("*").eq("direction", "outgoing");
+    const out = await supabase.from("client_messages").select("*").eq("history_only", false).eq("direction", "outgoing");
     if (m.error || out.error) setErr((m.error || out.error)!.message);
     const all = [...((m.data as ClientMessage[]) || []), ...(((out.data as ClientMessage[]) || []).filter((o) => !(m.data || []).some((x: ClientMessage) => x.id === o.id)))];
     const monday = addDays(date, -((weekdayOf(date) + 6) % 7));

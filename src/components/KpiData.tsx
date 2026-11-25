@@ -28,10 +28,10 @@ export function useKpi(weekStart: string) {
   const reload = useCallback(async () => {
     const q = await Promise.all([
       supabase.from("ig_leads").select("*"),
-      supabase.from("ig_messages").select("lead_id,direction,sent_at"),
+      supabase.from("ig_messages").select("lead_id,direction,sent_at").eq("history_only", false),
       supabase.from("clients").select("*"),
-      supabase.from("client_messages").select("client_id,created_at").eq("direction", "outgoing"),
-      supabase.from("client_messages").select("client_id,sent_at").eq("direction", "incoming"),
+      supabase.from("client_messages").select("client_id,created_at").eq("history_only", false).eq("direction", "outgoing"),
+      supabase.from("client_messages").select("client_id,sent_at").eq("history_only", false).eq("direction", "incoming"),
       supabase.from("reply_drafts").select("*").eq("kind", "checkin"),
       supabase.from("checkins").select("*").eq("week_start", weekStart),
       supabase.from("quiet_flags").select("*").eq("week_start", weekStart),

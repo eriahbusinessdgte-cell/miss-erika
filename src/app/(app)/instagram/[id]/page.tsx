@@ -24,6 +24,8 @@ export default function LeadPage() {
   const [err, setErr] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [when, setWhen] = useState("");
+  const [who, setWho] = useState<"lead" | "erika" | "michael">("lead");
+  const [historyOnly, setHistoryOnly] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -72,8 +74,8 @@ export default function LeadPage() {
   if (!lead) return <div className="banner error">Lead not found. <Link href="/instagram">Back to leads</Link></div>;
 
   const active = [...drafts].reverse().find((d) => d.status === "draft" || d.status === "copied");
-  const lastOut = msgs.filter((m) => m.direction === "outgoing").reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
-  const unreplied = msgs.filter((m) => m.direction === "incoming" && new Date(m.created_at).getTime() > lastOut);
+  const lastOut = msgs.filter((m) => m.direction === "outgoing" && !m.history_only).reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
+  const unreplied = msgs.filter((m) => m.direction === "incoming" && !m.history_only && new Date(m.created_at).getTime() > lastOut);
   const failed = unreplied.find((m) => m.analysis_error);
   const needsAnalysis = unreplied.length > 0 && !unreplied.every((m) => m.analyzed) && ai === "idle";
   const fu = followupState(lead, Date.now());
@@ -83,17 +85,30 @@ export default function LeadPage() {
     e.preventDefault();
     setErr(null);
     const sentAt = zonedToUtc(when, tz);
-    if (!text.trim()) return setErr("Paste their message first.");
-    if (!sentAt) return setErr("Enter the date and time they originally sent it.");
+    if (!text.trim()) return setErr("Paste the message first.");
+    if (!sentAt) return setErr("Enter the date and time it was originally sent.");
     if (sentAt.getTime() > Date.now() + 5 * 60000) return setErr("That date and time is in the future. Check it.");
+    const incoming = who === "lead";
+    const history = !incoming || historyOnly; // only a lead message saved normally gets a reply written
     setSaving(true);
-    const { error } = await supabase.from("ig_messages").insert({ lead_id: id, direction: "incoming", body: text.trim(), sent_at: sentAt.toISOString() });
+    const { error } = await supabase.from("ig_messages").insert({
+      lead_id: id,
+      direction: incoming ? "incoming" : "outgoing",
+      sender: incoming ? "erika" : who,
+      kind: incoming ? "reply" : who === "michael" ? "michael" : "reply",
+      body: text.trim(),
+      sent_at: sentAt.toISOString(),
+      history_only: history,
+      analyzed: history,
+    });
     if (error) { setSaving(false); return setErr(error.message); }
-    const last = lead!.last_inbound_at && new Date(lead!.last_inbound_at) > sentAt ? lead!.last_inbound_at : sentAt.toISOString();
-    await supabase.from("ig_leads").update({ last_inbound_at: last, needs_reply: true }).eq("id", id);
-    setText(""); setWhen(""); setSaving(false);
+    if (incoming) {
+      const last = lead!.last_inbound_at && new Date(lead!.last_inbound_at) > sentAt ? lead!.last_inbound_at : sentAt.toISOString();
+      await supabase.from("ig_leads").update(history ? { last_inbound_at: last } : { last_inbound_at: last, needs_reply: true }).eq("id", id);
+    }
+    setText(""); setSaving(false);
     await load();
-    enqueueAnalysis(id, INSTAGRAM);
+    if (!history) { setWhen(""); enqueueAnalysis(id, INSTAGRAM); }
     reloadLeads();
   }
 
@@ -184,6 +199,12 @@ export default function LeadPage() {
               <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : m.sender === "michael" ? "out michael" : "out"}`}>
                 {m.sender === "michael" && <span className="who">Michael replied personally</span>}
                 {m.body}
+                {m.direction === "incoming" && m.history_only && (
+                  <span className="when">
+                    Saved to history only ·{" "}
+                    <button type="button" className="btn" style={{ padding: "2px 8px", fontSize: 12 }} disabled={ai !== "idle"} onClick={() => enqueueAnalysis(id, INSTAGRAM, m.id)}>Write a reply to this</button>
+                  </span>
+                )}
                 <span className="when">{m.direction === "incoming" ? "They sent " : m.sender === "michael" ? "Michael sent " : "You sent "}{formatDateTime(m.sent_at, tz)}</span>
               </div>
             ))}
@@ -221,9 +242,18 @@ export default function LeadPage() {
           {ai === "idle" && lead.needs_michael && !active && unreplied.length > 0 && <p className="sub">No draft was written because this one needs Michael.</p>}
 
           <form onSubmit={savePaste} style={{ marginTop: 16, display: "grid", gap: 10 }}>
-            <div className="field"><label htmlFor="paste">Paste their message</label><textarea id="paste" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste exactly what they wrote" /></div>
-            <div className="field"><label htmlFor="paste-when">When they sent it ({tz})</label><input id="paste-when" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} max={utcToZonedInput(new Date().toISOString(), tz)} /></div>
-            <div><button className="btn primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save message"}</button></div>
+            <div className="field"><label htmlFor="paste-who">Who wrote it</label>
+              <select id="paste-who" value={who} onChange={(e) => setWho(e.target.value as "lead" | "erika" | "michael")}>
+                <option value="lead">The lead</option><option value="erika">Me (Erika)</option><option value="michael">Michael</option>
+              </select></div>
+            <div className="field"><label htmlFor="paste">{who === "lead" ? "Paste their message" : who === "erika" ? "Paste what you replied" : "Paste what Michael replied"}</label><textarea id="paste" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste exactly what was written" /></div>
+            {who === "lead" ? (
+              <label className="checkrow"><input type="checkbox" checked={historyOnly} onChange={(e) => setHistoryOnly(e.target.checked)} /> Save to history only. Don&apos;t write a reply.</label>
+            ) : (
+              <p className="sub">Saved to the conversation history only. Nothing is drafted, and follow-up timing isn&apos;t changed.</p>
+            )}
+            <div className="field"><label htmlFor="paste-when">When it was sent ({tz})</label><input id="paste-when" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} max={utcToZonedInput(new Date().toISOString(), tz)} /></div>
+            <div><button className="btn primary" type="submit" disabled={saving}>{saving ? "Saving…" : who === "lead" && !historyOnly ? "Save and write a reply" : "Save to history"}</button></div>
           </form>
 
           <div style={{ marginTop: 18, borderTop: "1px solid var(--line)", paddingTop: 14 }}>

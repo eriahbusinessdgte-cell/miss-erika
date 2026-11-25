@@ -8,7 +8,7 @@ import { IG_SYSTEM, buildIgPrompt, checkMichaelReply, detectHandover, parseIgAna
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-type Msg = { id: string; direction: "incoming" | "outgoing"; body: string; sent_at: string; created_at: string };
+type Msg = { history_only?: boolean; id: string; direction: "incoming" | "outgoing"; body: string; sent_at: string; created_at: string };
 
 export async function POST(req: Request) {
   const supabase = await createServerSupabase();
@@ -16,12 +16,13 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ ok: false, error: "Please sign in again." }, { status: 401 });
 
   let leadId = "";
-  try { leadId = String((await req.json()).clientId || ""); } catch { /* handled below */ }
+  let messageId = "";
+  try { const body = await req.json(); leadId = String(body.clientId || ""); messageId = String(body.messageId || ""); } catch { /* handled below */ }
   if (!leadId) return NextResponse.json({ ok: false, error: "Missing lead." }, { status: 400 });
 
   const [{ data: lead }, { data: raw }, { data: settings }, { data: kn }, { data: res }] = await Promise.all([
     supabase.from("ig_leads").select("*").eq("id", leadId).maybeSingle(),
-    supabase.from("ig_messages").select("id,direction,body,sent_at,created_at").eq("lead_id", leadId).order("sent_at", { ascending: true }),
+    supabase.from("ig_messages").select("id,direction,body,sent_at,created_at,history_only").eq("lead_id", leadId).order("sent_at", { ascending: true }),
     supabase.from("settings").select("timezone").maybeSingle(),
     supabase.from("knowledge").select("key,title,body"),
     supabase.from("resources").select("name,url,purpose,active").eq("active", true),
@@ -30,9 +31,12 @@ export async function POST(req: Request) {
   const tz = settings?.timezone || "Asia/Manila";
   const msgs = (raw || []) as Msg[];
 
-  const lastOut = msgs.filter((m) => m.direction === "outgoing").reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
-  const fresh = msgs.filter((m) => m.direction === "incoming" && new Date(m.created_at).getTime() > lastOut);
-  if (fresh.length === 0) return NextResponse.json({ ok: false, error: "There are no new unanswered messages from this lead." });
+  // Saved-to-history messages never count as new. They are only answered when Erika asks for it (messageId).
+  const lastOut = msgs.filter((m) => m.direction === "outgoing" && !m.history_only).reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
+  const fresh = messageId
+    ? msgs.filter((m) => m.id === messageId && m.direction === "incoming")
+    : msgs.filter((m) => m.direction === "incoming" && !m.history_only && new Date(m.created_at).getTime() > lastOut);
+  if (fresh.length === 0) return NextResponse.json({ ok: false, error: messageId ? "That message couldn't be found." : "There are no new unanswered messages from this lead." });
   const ids = fresh.map((m) => m.id);
   const freshText = fresh.map((m) => m.body).join("\n");
 

@@ -26,6 +26,8 @@ export default function ClientChat() {
   const [err, setErr] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [when, setWhen] = useState("");
+  const [who, setWho] = useState<"client" | "erika" | "michael">("client");
+  const [historyOnly, setHistoryOnly] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -57,8 +59,8 @@ export default function ClientChat() {
   }, [aiState, load]);
 
   const activeDraft = [...drafts].reverse().find((d) => d.status === "draft" || d.status === "copied");
-  const lastOut = msgs.filter((m) => m.direction === "outgoing").reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
-  const unreplied = msgs.filter((m) => m.direction === "incoming" && new Date(m.created_at).getTime() > lastOut);
+  const lastOut = msgs.filter((m) => m.direction === "outgoing" && !m.history_only).reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
+  const unreplied = msgs.filter((m) => m.direction === "incoming" && !m.history_only && new Date(m.created_at).getTime() > lastOut);
   const failed = unreplied.find((m) => m.analysis_error);
   const needsAnalysis = unreplied.length > 0 && !unreplied.every((m) => m.analyzed) && aiState === "idle";
 
@@ -66,37 +68,49 @@ export default function ClientChat() {
     e.preventDefault();
     setErr(null);
     const sentAt = zonedToUtc(when, tz);
-    if (!text.trim()) return setErr("Paste the client's message first.");
-    if (!sentAt) return setErr("Enter the date and time the client originally sent it.");
+    if (!text.trim()) return setErr("Paste the message first.");
+    if (!sentAt) return setErr("Enter the date and time it was originally sent.");
     if (sentAt.getTime() > Date.now() + 5 * 60000) return setErr("That date and time is in the future. Check it.");
+    const incoming = who === "client";
+    const history = !incoming || historyOnly; // only a client message saved normally gets a reply written
     setSaving(true);
     const { error } = await supabase.from("client_messages").insert({
       client_id: id,
-      direction: "incoming",
+      direction: incoming ? "incoming" : "outgoing",
+      sender: incoming ? "erika" : who,
       body: text.trim(),
       sent_at: sentAt.toISOString(),
       session_date: when.slice(0, 10),
+      history_only: history,
+      analyzed: history ? true : false,
     });
     if (error) {
       setSaving(false);
       return setErr(error.message);
     }
-    // Scores: only what the client wrote, exactly as written.
-    const sc = extractScores(text);
-    if (Object.keys(sc).length) {
-      await supabase.from("score_history").insert({ client_id: id, peace: sc.peace ?? null, life: sc.life ?? null, body: sc.body ?? null, recorded_at: sentAt.toISOString() });
+    const patch: Record<string, unknown> = {};
+    if (incoming) {
+      // Scores: only what the client wrote, exactly as written.
+      const sc = extractScores(text);
+      if (Object.keys(sc).length) {
+        await supabase.from("score_history").insert({ client_id: id, peace: sc.peace ?? null, life: sc.life ?? null, body: sc.body ?? null, recorded_at: sentAt.toISOString() });
+        const newest = scores.every((r) => new Date(r.recorded_at).getTime() <= sentAt.getTime());
+        if (!history || newest) {
+          if (sc.peace !== undefined) patch.peace_score = sc.peace;
+          if (sc.life !== undefined) patch.life_score = sc.life;
+          if (sc.body !== undefined) patch.body_score = sc.body;
+        }
+      }
+      if (!history) patch.needs_reply = true;
+      if (!client?.last_message_at || sentAt.getTime() > new Date(client.last_message_at).getTime()) patch.last_message_at = sentAt.toISOString();
+    } else if (!client?.last_response_at || sentAt.getTime() > new Date(client.last_response_at).getTime()) {
+      patch.last_response_at = sentAt.toISOString();
     }
-    const patch: Record<string, unknown> = { needs_reply: true };
-    if (!client?.last_message_at || sentAt.getTime() > new Date(client.last_message_at).getTime()) patch.last_message_at = sentAt.toISOString();
-    if (sc.peace !== undefined) patch.peace_score = sc.peace;
-    if (sc.life !== undefined) patch.life_score = sc.life;
-    if (sc.body !== undefined) patch.body_score = sc.body;
-    await supabase.from("clients").update(patch).eq("id", id);
+    if (Object.keys(patch).length) await supabase.from("clients").update(patch).eq("id", id);
     setText("");
-    setWhen("");
     setSaving(false);
     await load();
-    enqueueAnalysis(id);
+    if (!history) { setWhen(""); enqueueAnalysis(id); }
     reloadClients();
   }
 
@@ -205,6 +219,12 @@ export default function ClientChat() {
               <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : m.sender === "michael" ? "out michael" : "out"}`}>
                 {m.sender === "michael" && <span className="who">Michael replied personally</span>}
                 {m.body}
+                {m.direction === "incoming" && m.history_only && (
+                  <span className="when">
+                    Saved to history only ·{" "}
+                    <button type="button" className="btn" style={{ padding: "2px 8px", fontSize: 12 }} disabled={aiState !== "idle"} onClick={() => enqueueAnalysis(id, undefined, m.id)}>Write a reply to this</button>
+                  </span>
+                )}
                 <span className="when">
                   {m.direction === "incoming" ? "Sent " : m.sender === "michael" ? "Sent " : "Replied "}{formatDateTime(m.sent_at, tz)}
                   {m.direction === "incoming" && ` · pasted ${formatDateTime(m.created_at, tz)}`}
@@ -233,7 +253,7 @@ export default function ClientChat() {
                       <button className="btn" onClick={() => copyDraft(activeDraft)}>Copy</button>
                       <button className="btn primary" onClick={() => markSent(activeDraft)}>Mark as Sent</button>
                       <button className="btn" onClick={() => { setEditing(activeDraft.id); setEditText(activeDraft.body); }}>Edit</button>
-                      <button className="btn" onClick={() => enqueueAnalysis(id, activeDraft.kind === "checkin" ? CHECKIN : undefined)} disabled={aiState !== "idle" && activeDraft.kind !== "checkin"}>Regenerate</button>
+                      <button className="btn" onClick={() => enqueueAnalysis(id, activeDraft.kind === "checkin" ? CHECKIN : undefined, activeDraft.kind === "checkin" ? undefined : msgs.find((m) => m.history_only && m.direction === "incoming" && activeDraft.source_message_ids?.includes(m.id))?.id)} disabled={aiState !== "idle" && activeDraft.kind !== "checkin"}>Regenerate</button>
                     </div>
                   </>
                 )}
@@ -251,14 +271,27 @@ export default function ClientChat() {
 
           <form onSubmit={savePaste} style={{ marginTop: 16, display: "grid", gap: 10 }}>
             <div className="field">
-              <label htmlFor="paste">Paste the client&apos;s message</label>
-              <textarea id="paste" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste exactly what the client wrote" />
+              <label htmlFor="paste-who">Who wrote it</label>
+              <select id="paste-who" value={who} onChange={(e) => setWho(e.target.value as "client" | "erika" | "michael")}>
+                <option value="client">The client</option>
+                <option value="erika">Me (Erika)</option>
+                <option value="michael">Michael</option>
+              </select>
             </div>
             <div className="field">
-              <label htmlFor="paste-when">When the client sent it ({tz})</label>
+              <label htmlFor="paste">{who === "client" ? "Paste the client's message" : who === "erika" ? "Paste what you replied" : "Paste what Michael replied"}</label>
+              <textarea id="paste" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste exactly what was written" />
+            </div>
+            {who === "client" ? (
+              <label className="checkrow"><input type="checkbox" checked={historyOnly} onChange={(e) => setHistoryOnly(e.target.checked)} /> Save to history only. Don&apos;t write a reply.</label>
+            ) : (
+              <p className="sub">Saved to the conversation history only. Nothing is drafted.</p>
+            )}
+            <div className="field">
+              <label htmlFor="paste-when">When it was sent ({tz})</label>
               <input id="paste-when" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} max={utcToZonedInput(new Date().toISOString(), tz)} />
             </div>
-            <div><button className="btn primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save message"}</button></div>
+            <div><button className="btn primary" type="submit" disabled={saving}>{saving ? "Saving…" : who === "client" && !historyOnly ? "Save and write a reply" : "Save to history"}</button></div>
           </form>
 
           <div style={{ marginTop: 18, borderTop: "1px solid var(--line)", paddingTop: 14 }}>

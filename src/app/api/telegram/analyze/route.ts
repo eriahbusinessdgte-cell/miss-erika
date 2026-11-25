@@ -17,7 +17,7 @@ import {
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-type Msg = { id: string; direction: "incoming" | "outgoing"; sender: "erika" | "michael"; body: string; sent_at: string; created_at: string };
+type Msg = { history_only?: boolean; id: string; direction: "incoming" | "outgoing"; sender: "erika" | "michael"; body: string; sent_at: string; created_at: string };
 
 // Reads the client's conversation, writes Erika's analysis and reply draft, and saves everything.
 export async function POST(req: Request) {
@@ -28,8 +28,11 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ ok: false, error: "Please sign in again." }, { status: 401 });
 
   let clientId = "";
+  let messageId = "";
   try {
-    clientId = String((await req.json()).clientId || "");
+    const body = await req.json();
+    clientId = String(body.clientId || "");
+    messageId = String(body.messageId || "");
   } catch {
     /* handled below */
   }
@@ -37,7 +40,7 @@ export async function POST(req: Request) {
 
   const [{ data: client }, { data: msgsRaw }, { data: settings }] = await Promise.all([
     supabase.from("clients").select("*").eq("id", clientId).maybeSingle(),
-    supabase.from("client_messages").select("id,direction,sender,body,sent_at,created_at").eq("client_id", clientId).order("sent_at", { ascending: true }),
+    supabase.from("client_messages").select("id,direction,sender,body,sent_at,created_at,history_only").eq("client_id", clientId).order("sent_at", { ascending: true }),
     supabase.from("settings").select("timezone").maybeSingle(),
   ]);
   if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
@@ -45,10 +48,13 @@ export async function POST(req: Request) {
   const msgs = (msgsRaw || []) as Msg[];
 
   // New = client messages pasted after the last reply that was marked as sent.
-  const lastOut = msgs.filter((m) => m.direction === "outgoing").reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
-  const fresh = msgs.filter((m) => m.direction === "incoming" && new Date(m.created_at).getTime() > lastOut);
+  // Saved-to-history messages never count as new. They are only answered when Erika asks for it (messageId).
+  const lastOut = msgs.filter((m) => m.direction === "outgoing" && !m.history_only).reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
+  const fresh = messageId
+    ? msgs.filter((m) => m.id === messageId && m.direction === "incoming")
+    : msgs.filter((m) => m.direction === "incoming" && !m.history_only && new Date(m.created_at).getTime() > lastOut);
   if (fresh.length === 0) {
-    return NextResponse.json({ ok: false, error: "There are no new unanswered messages from this client." });
+    return NextResponse.json({ ok: false, error: messageId ? "That message couldn't be found." : "There are no new unanswered messages from this client." });
   }
   const freshIds = new Set(fresh.map((m) => m.id));
   const toPrompt = (m: Msg): PromptMessage => ({ direction: m.direction, sender: m.sender, body: m.body, when: formatDateTime(m.sent_at, tz) });
