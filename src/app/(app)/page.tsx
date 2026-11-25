@@ -52,7 +52,8 @@ function timeAgo(iso: string | null): string {
 }
 
 export default function Dashboard() {
-  const { settings, tasks, clients, leads, today } = useAppData();
+  const { settings, tasks, clients, leads: allLeads, today } = useAppData();
+  const leads = allLeads.filter((l) => !l.archived);
   const [quietOpen, setQuietOpen] = useState<{ id: string; client_id: string; note: string }[]>([]);
   useEffect(() => {
     createClient().from("quiet_flags").select("id,client_id,note,status,resolved_at").eq("status", "flagged").then(({ data }) => setQuietOpen(((data as { id: string; client_id: string; note: string; resolved_at: string | null }[]) || []).filter((f) => !f.resolved_at)));

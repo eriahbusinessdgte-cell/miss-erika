@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppData } from "@/components/AppData";
 import { createClient } from "@/lib/supabase/client";
@@ -14,6 +14,7 @@ export default function ClientChat() {
   const { id } = useParams<{ id: string }>();
   const { settings, reloadClients } = useAppData();
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
   const tz = settings?.timezone || "Asia/Manila";
   const aiState = useAnalysisState(id);
 
@@ -169,6 +170,22 @@ export default function ClientChat() {
           <p className="sub"><Link href="/telegram">← All clients</Link></p>
           <h1>{client.name}</h1>
           <p className="sub">{client.telegram_username ? `@${client.telegram_username} · ` : ""}{client.status}</p>
+        </div>
+        <div className="row">
+          <button className="btn" onClick={async () => {
+            const archiving = client.status !== "Archived";
+            const { error } = await supabase.from("clients").update({ status: archiving ? "Archived" : "Active" }).eq("id", id);
+            if (error) return setErr(error.message);
+            await reloadClients();
+            if (archiving) router.push("/telegram"); else await load();
+          }}>{client.status === "Archived" ? "Restore" : "Archive"}</button>
+          <button className="btn" onClick={async () => {
+            if (!window.confirm("Delete this client and all their messages, drafts and check-ins? This can't be undone. (Archive keeps them.)")) return;
+            const { error } = await supabase.from("clients").delete().eq("id", id);
+            if (error) return setErr(error.message);
+            await reloadClients();
+            router.push("/telegram");
+          }}>Delete</button>
         </div>
       </div>
       {err && <div className="banner error" role="alert">{err}</div>}

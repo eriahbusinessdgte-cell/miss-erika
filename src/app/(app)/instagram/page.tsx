@@ -31,6 +31,7 @@ export default function InstagramLeads() {
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return leads.filter((l) => {
+      if (show === "archived" ? !l.archived : l.archived) return false;
       if (stage !== "all" && l.stage !== stage) return false;
       const fu = followupState(l, now).state;
       if (show === "due" && fu !== "due") return false;
@@ -122,6 +123,7 @@ export default function InstagramLeads() {
             <option value="reply">Needs a reply</option>
             <option value="due">Follow-up due</option>
             <option value="michael">Waiting for Michael</option>
+            <option value="archived">Archived</option>
           </select>
         </div>
       </div>

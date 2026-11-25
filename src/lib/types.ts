@@ -133,6 +133,7 @@ export type IgLead = {
   outreach_sent_at: string | null;
   followups_sent: number;
   followups_stopped: boolean;
+  archived?: boolean;
   engaged_at: string | null;
   link_sent_at: string | null;
   created_at: string;

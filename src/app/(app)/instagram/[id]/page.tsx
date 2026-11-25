@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppData } from "@/components/AppData";
 import { createClient } from "@/lib/supabase/client";
@@ -53,6 +53,14 @@ export default function LeadPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (ai === "idle") { load(); reloadLeads(); } }, [ai]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const router = useRouter();
+  const deleteLead = async () => {
+    if (!window.confirm("Delete this lead and all its messages and drafts? This can't be undone. (Archive keeps them.)")) return;
+    const { error } = await supabase.from("ig_leads").delete().eq("id", id);
+    if (error) return setErr(error.message);
+    await reloadLeads();
+    router.push("/instagram");
+  };
   const patchLead = async (p: Record<string, unknown>) => {
     const { error } = await supabase.from("ig_leads").update(p).eq("id", id);
     if (error) setErr(error.message);
@@ -153,7 +161,11 @@ export default function LeadPage() {
         <div>
           <p className="sub"><Link href="/instagram">← All leads</Link></p>
           <h1>{lead.name}</h1>
-          <p className="sub">{lead.handle ? `@${lead.handle} · ` : ""}{SOURCE_LABEL[lead.source]} · {lead.stage}</p>
+          <p className="sub">{lead.handle ? `@${lead.handle} · ` : ""}{SOURCE_LABEL[lead.source]} · {lead.stage}{lead.archived ? " · Archived" : ""}</p>
+        </div>
+        <div className="row">
+          <button className="btn" onClick={async () => { await patchLead({ archived: !lead.archived }); if (!lead.archived) router.push("/instagram"); }}>{lead.archived ? "Restore" : "Archive"}</button>
+          <button className="btn" onClick={deleteLead}>Delete</button>
         </div>
       </div>
       {err && <div className="banner error" role="alert">{err}</div>}
