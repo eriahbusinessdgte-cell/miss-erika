@@ -29,6 +29,7 @@ export function buildReport(args: {
   periodEnd: number;
   clients: RClient[];
   messages: RMessage[];
+  quiet?: { since: string; clients: { name: string; lastHeard: string }[] };
 }): BuiltReport {
   const entries: { name: string; rank: number; text: string; michael?: string }[] = [];
   let sent = 0;
@@ -79,6 +80,10 @@ export function buildReport(args: {
     else lines.push(`I've replied to ${sent} of them. ${pending} ${pending === 1 ? "reply is" : "replies are"} still pending.`);
   }
   if (n > 0) lines.push("", entries.map((e) => e.text).join("\n\n"));
+  if (args.quiet && args.quiet.clients.length > 0) {
+    lines.push("", `Quiet clients (active clients we haven't heard from since ${args.quiet.since}):`);
+    args.quiet.clients.forEach((q) => lines.push(`- ${q.name} (last message ${q.lastHeard})`));
+  }
   lines.push("", "Need your personal response:");
   if (michael.length === 0) lines.push("None today.");
   else michael.forEach((e) => lines.push(`- ${e.name}: ${e.michael}`));

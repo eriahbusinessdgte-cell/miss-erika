@@ -15,13 +15,14 @@ export function mondayOf(date: string): string {
 
 type RawMsg = { lead_id: string; direction: "incoming" | "outgoing"; sent_at: string };
 type RawOut = { client_id: string; created_at: string };
+type RawInc = { client_id: string; sent_at: string };
 
 export function useKpi(weekStart: string) {
   const { settings } = useAppData();
   const supabase = useMemo(() => createClient(), []);
   const tz = settings?.timezone || "Asia/Manila";
   const inactiveDays = settings?.quiet_inactive_days ?? 14;
-  const [raw, setRaw] = useState<{ leads: IgLead[]; msgs: RawMsg[]; clients: Client[]; outs: RawOut[]; drafts: ReplyDraft[]; checkins: Checkin[]; flags: QuietFlag[]; calls: IgCall[]; reports: KpiReportRow[] } | null>(null);
+  const [raw, setRaw] = useState<{ leads: IgLead[]; msgs: RawMsg[]; clients: Client[]; outs: RawOut[]; inc: RawInc[]; drafts: ReplyDraft[]; checkins: Checkin[]; flags: QuietFlag[]; calls: IgCall[]; reports: KpiReportRow[] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -30,6 +31,7 @@ export function useKpi(weekStart: string) {
       supabase.from("ig_messages").select("lead_id,direction,sent_at"),
       supabase.from("clients").select("*"),
       supabase.from("client_messages").select("client_id,created_at").eq("direction", "outgoing"),
+      supabase.from("client_messages").select("client_id,sent_at").eq("direction", "incoming"),
       supabase.from("reply_drafts").select("*").eq("kind", "checkin"),
       supabase.from("checkins").select("*").eq("week_start", weekStart),
       supabase.from("quiet_flags").select("*").eq("week_start", weekStart),
@@ -39,7 +41,7 @@ export function useKpi(weekStart: string) {
     const e = q.find((r) => r.error)?.error;
     if (e) setErr(e.message);
     const d = (i: number) => (q[i].data || []) as never[];
-    setRaw({ leads: d(0), msgs: d(1), clients: d(2), outs: d(3), drafts: d(4), checkins: d(5), flags: d(6), calls: d(7), reports: d(8) });
+    setRaw({ leads: d(0), msgs: d(1), clients: d(2), outs: d(3), inc: d(4), drafts: d(5), checkins: d(6), flags: d(7), calls: d(8), reports: d(9) });
   }, [supabase, weekStart]);
 
   useEffect(() => { reload(); }, [reload]);
@@ -72,10 +74,12 @@ export function useKpi(weekStart: string) {
       outgoing: raw.outs.map((o) => ({ client_id: o.client_id, created_at: new Date(o.created_at).getTime() })),
       mondayDay: weekStart, mondayEnd, now, ctx,
     });
+    const heard = (id: string) => raw.inc.filter((m) => m.client_id === id).map((m) => new Date(m.sent_at).getTime()).filter((t) => t <= mondayEnd).sort((x, y) => y - x)[0] ?? null;
+    const heardAny = (id: string) => raw.inc.filter((m) => m.client_id === id).map((m) => new Date(m.sent_at).getTime()).filter((t) => t <= now).sort((x, y) => y - x)[0] ?? null;
     const quiet = quietKpi({
-      clients: kClients,
+      clients: kClients.map((c) => ({ ...c, last_heard_by_monday: heard(c.id), last_heard_any: heardAny(c.id) })),
       flags: raw.flags.map((f) => ({ client_id: f.client_id, status: f.status, note: f.note, flagged_at: new Date(f.flagged_at).getTime(), resolved_at: ms(f.resolved_at) })),
-      inactiveDays, tuesdayEnd, now,
+      weekStart: weekStartMs, lookbackDays: inactiveDays, mondayEnd, tuesdayEnd, now,
     });
     const fmt = { date: (t: number) => formatDateTime(new Date(t).toISOString(), tz).split(",")[0], dateTime: (t: number) => formatDateTime(new Date(t).toISOString(), tz), day: (t: number) => todayInTz(tz, new Date(t)) };
     const weekLabel = `${prettyDate(weekStart)} to ${prettyDate(addDays(weekStart, 4))}`;

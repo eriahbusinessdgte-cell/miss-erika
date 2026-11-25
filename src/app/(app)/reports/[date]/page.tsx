@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppData } from "@/components/AppData";
 import { createClient } from "@/lib/supabase/client";
-import { addDays, formatDateTime, prettyDate, zonedToUtc } from "@/lib/core";
+import { addDays, formatDateTime, prettyDate, todayInTz, weekdayOf, zonedToUtc } from "@/lib/core";
 import { buildReport, reportChanged, type RMessage } from "@/lib/report";
 import type { Client, ClientMessage, DailyReport } from "@/lib/types";
 
@@ -26,6 +26,8 @@ export default function DailyReportPage() {
   const [note, setNote] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [flagOffer, setFlagOffer] = useState<{ id: string; name: string }[]>([]);
 
   const dayStart = zonedToUtc(`${date}T00:00`, tz);
   const dayEnd = zonedToUtc(`${addDays(date, 1)}T00:00`, tz);
@@ -48,6 +50,9 @@ export default function DailyReportPage() {
     const out = await supabase.from("client_messages").select("*").eq("direction", "outgoing");
     if (m.error || out.error) setErr((m.error || out.error)!.message);
     const all = [...((m.data as ClientMessage[]) || []), ...(((out.data as ClientMessage[]) || []).filter((o) => !(m.data || []).some((x: ClientMessage) => x.id === o.id)))];
+    const monday = addDays(date, -((weekdayOf(date) + 6) % 7));
+    const fl = await supabase.from("quiet_flags").select("client_id,status").eq("week_start", monday);
+    setDismissed(((fl.data as { client_id: string; status: string }[]) || []).filter((f) => f.status === "dismissed").map((f) => f.client_id));
     setClients((c.data as Client[]) || []);
     setMsgs(all);
     setVersions((v.data as DailyReport[]) || []);
@@ -62,10 +67,26 @@ export default function DailyReportPage() {
 
   const periodStart = Math.min(dayStart?.getTime() ?? 0, prevEnd ?? Infinity);
   const periodEnd = dayEnd?.getTime() ?? 0;
+  // On Monday and Tuesday the report also lists active clients we haven't heard from since Tuesday of the previous week.
+  const quietList = useMemo(() => {
+    const dow = weekdayOf(date);
+    const monday = addDays(date, -((dow + 6) % 7));
+    const isLiveWeek = monday === addDays(todayInTz(tz), -((weekdayOf(todayInTz(tz)) + 6) % 7));
+    if ((dow !== 1 && dow !== 2) || !isLiveWeek) return undefined;
+    const days = settings?.quiet_inactive_days ?? 6;
+    const since = addDays(monday, -days);
+    const cutoff = zonedToUtc(`${since}T00:00`, tz)?.getTime() ?? 0;
+    const list = clients
+      .filter((c) => c.status === "Active" && !dismissed.includes(c.id))
+      .filter((c) => (c.last_message_at ? new Date(c.last_message_at).getTime() : new Date(c.created_at).getTime()) < cutoff)
+      .map((c) => ({ id: c.id, name: c.name, lastHeard: c.last_message_at ? formatDateTime(c.last_message_at, tz).split(",")[0] : "none yet" }));
+    return { since: prettyDate(since), list };
+  }, [date, tz, clients, dismissed, settings?.quiet_inactive_days]);
+
   const built = useMemo(() => {
     const rm: RMessage[] = msgs.map((m) => ({ client_id: m.client_id, direction: m.direction, created_at: new Date(m.created_at).getTime(), sent_at: new Date(m.sent_at).getTime(), analysis: m.analysis }));
-    return buildReport({ prettyDate: prettyDate(date), periodStart, periodEnd, clients, messages: rm });
-  }, [msgs, clients, date, periodStart, periodEnd]);
+    return buildReport({ prettyDate: prettyDate(date), periodStart, periodEnd, clients, messages: rm, quiet: quietList ? { since: quietList.since, clients: quietList.list } : undefined });
+  }, [msgs, clients, date, periodStart, periodEnd, quietList]);
 
   const latest = versions.length ? versions[versions.length - 1] : null;
   const isSent = latest?.status === "sent";
@@ -138,7 +159,25 @@ export default function DailyReportPage() {
     if (task && task.status !== "Done") await setTaskStatus(task, "Done");
     setBusy(false);
     setNote("Marked as sent.");
+    if (quietList && quietList.list.length) {
+      const names = quietList.list.filter((q) => text.includes(q.name));
+      setFlagOffer(names.map((q) => ({ id: q.id, name: q.name })));
+    }
     await load();
+  }
+
+  async function flagListed() {
+    setBusy(true);
+    const monday = addDays(date, -((weekdayOf(date) + 6) % 7));
+    const { data: have } = await supabase.from("quiet_flags").select("client_id").eq("week_start", monday);
+    const done = new Set(((have as { client_id: string }[]) || []).map((f) => f.client_id));
+    for (const q of flagOffer) {
+      if (done.has(q.id)) continue;
+      await supabase.from("quiet_flags").insert({ client_id: q.id, week_start: monday, status: "flagged", note: `Listed in the daily report sent ${prettyDate(date)}` });
+    }
+    setBusy(false);
+    setFlagOffer([]);
+    setNote("Quiet clients flagged to Michael.");
   }
 
   async function createUpdate() {
@@ -167,6 +206,13 @@ export default function DailyReportPage() {
       </div>
       {err && <div className="banner error" role="alert">{err}</div>}
       {note && <div className="banner" role="status">{note}</div>}
+      {flagOffer.length > 0 && (
+        <div className="banner">
+          This report listed {flagOffer.length} quiet client{flagOffer.length === 1 ? "" : "s"} ({flagOffer.map((q) => q.name).join(", ")}). Record them as flagged to Michael?{" "}
+          <button className="btn primary" disabled={busy} onClick={flagListed}>Yes, flag them</button>{" "}
+          <button className="btn" onClick={() => setFlagOffer([])}>Not now</button>
+        </div>
+      )}
       {!loaded ? <p className="sub">Loading…</p> : (
         <div className="chatgrid">
           <section className="card">

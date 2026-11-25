@@ -45,3 +45,11 @@ test("sent report is flagged as changed only when something changed", () => {
   assert.equal(reportChanged(saved, { ...r.counts, sent: 2, pending: 0 }, 1500), true);
   assert.equal(reportChanged(saved, r.counts, 4000), true);
 });
+
+test("Monday/Tuesday report lists quiet clients; none listed when there are none", () => {
+  const q = buildReport({ prettyDate: "d", periodStart: 100, periodEnd: 5000, clients, messages: msgs, quiet: { since: "Tue 17 Nov", clients: [{ name: "Cara Moon", lastHeard: "Mon 9 Nov" }] } });
+  assert.match(q.body, /Quiet clients \(active clients we haven't heard from since Tue 17 Nov\):\n- Cara Moon \(last message Mon 9 Nov\)/);
+  assert.ok(q.body.indexOf("Quiet clients") < q.body.indexOf("Need your personal response"));
+  const none = buildReport({ prettyDate: "d", periodStart: 100, periodEnd: 5000, clients, messages: msgs, quiet: { since: "x", clients: [] } });
+  assert.doesNotMatch(none.body, /Quiet clients/);
+});

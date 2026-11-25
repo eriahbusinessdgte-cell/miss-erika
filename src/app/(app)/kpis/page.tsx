@@ -79,7 +79,7 @@ export default function KpiOverview() {
                 <div className="score"><b>{k.quiet.flagged + k.quiet.dismissed}</b><span>Reviewed on time</span></div>
                 <div className="score"><b>{k.quiet.outstanding}</b><span>Not yet reviewed</span></div>
               </div>
-              <p className="sub" style={{ marginTop: 8 }}>Quiet = no contact for {k.inactiveDays} days (change in Settings). <Link href="/kpis/quiet">Open quiet clients</Link></p>
+              <p className="sub" style={{ marginTop: 8 }}>Quiet = an active client who hasn't messaged since Tuesday of the previous week (adjust in Settings). <Link href="/kpis/quiet">Open quiet clients</Link></p>
             </section>
           </div>
 

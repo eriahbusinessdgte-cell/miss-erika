@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAppData } from "@/components/AppData";
 import { Icon } from "@/components/Icon";
 import { createClient } from "@/lib/supabase/client";
-import { formatDateTime } from "@/lib/core";
+import { addDays, formatDateTime, weekdayOf, zonedToUtc } from "@/lib/core";
 import type { Client } from "@/lib/types";
 import { isQuiet } from "@/lib/clients";
 
@@ -36,7 +36,10 @@ export default function TelegramClients() {
   void router;
 
   const tz = settings?.timezone || "Asia/Manila";
-  const quietDays = settings?.quiet_inactive_days ?? 14;
+  const quietDays = settings?.quiet_inactive_days ?? 6;
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+  const mondayStr = addDays(todayStr, -((weekdayOf(todayStr) + 6) % 7));
+  const quietCutoff = (zonedToUtc(`${mondayStr}T00:00`, tz)?.getTime() ?? 0) - quietDays * 86400000;
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -46,7 +49,7 @@ export default function TelegramClients() {
         if (status !== "current" && status !== "all" && c.status !== status) return false;
         if (flag === "reply" && !c.needs_reply) return false;
         if (flag === "michael" && !c.needs_michael) return false;
-        if (flag === "quiet" && !isQuiet(c, quietDays)) return false;
+        if (flag === "quiet" && !isQuiet(c, quietCutoff)) return false;
         if (needle && !`${c.name} ${c.telegram_username} ${c.tags.join(" ")}`.toLowerCase().includes(needle)) return false;
         return true;
       })
@@ -54,7 +57,7 @@ export default function TelegramClients() {
         const w = (c: Client) => (c.needs_michael ? 0 : 1) + (c.needs_reply ? 0 : 2);
         return w(a) - w(b) || a.name.localeCompare(b.name);
       });
-  }, [clients, q, status, flag, quietDays]);
+  }, [clients, q, status, flag, quietCutoff]);
 
   async function addClient(e: React.FormEvent) {
     e.preventDefault();
@@ -134,7 +137,7 @@ export default function TelegramClients() {
                       {c.tags.map((t) => <span key={t} className="chip auto">{t}</span>)}
                       {c.needs_reply && <span className="chip today">Needs reply</span>}
                       {c.needs_michael && <span className="chip high">Waiting for Michael</span>}
-                      {isQuiet(c, quietDays) && <span className="chip">Quiet</span>}
+                      {isQuiet(c, quietCutoff) && <span className="chip">Quiet</span>}
                       {c.status !== "Active" && <span className="chip">{c.status}</span>}
                     </span>
                   </span>

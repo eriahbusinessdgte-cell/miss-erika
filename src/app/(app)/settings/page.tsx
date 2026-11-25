@@ -63,7 +63,7 @@ export default function SettingsPage() {
           </span>
         </div>
         <div className="field">
-          <label htmlFor="s-quiet">Treat a client as quiet after this many days without contact</label>
+          <label htmlFor="s-quiet">Quiet client: we haven't heard from them since this many days before Monday (6 = since Tuesday of the previous week)</label>
           <input id="s-quiet" type="number" min={1} value={d.quiet_inactive_days} onChange={(e) => setD({ ...d, quiet_inactive_days: Number(e.target.value) })} />
           <span className="hint">Used from Stage 5. Nothing is ever sent automatically.</span>
         </div>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { KpiTabs, StatusChip, WeekPicker, useKpi, useWeek } from "@/components/KpiData";
-import { formatDateTime, prettyDate } from "@/lib/core";
+import { addDays, formatDateTime, prettyDate } from "@/lib/core";
 import type { QuietRow } from "@/lib/kpi";
 import type { QuietFlag } from "@/lib/types";
 
@@ -17,7 +17,7 @@ export default function QuietClients() {
   const [hist, setHist] = useState<Hist[]>([]);
   const [open, setOpen] = useState<QuietFlag[]>([]);
 
-  const ids = k ? [...k.quiet.rows, ...k.quiet.later].map((r) => r.clientId) : [];
+  const ids = k ? k.quiet.rows.map((r) => r.clientId) : [];
   const idKey = ids.join(",");
   useEffect(() => {
     if (!idKey) { setHist([]); return; }
@@ -51,21 +51,21 @@ export default function QuietClients() {
   }
 
   const nameOf = (id: string) => raw?.clients.find((c) => c.id === id)?.name || "Client";
-  const card = (r: QuietRow, later = false) => {
+  const card = (r: QuietRow) => {
     const c = raw?.clients.find((x) => x.id === r.clientId);
     const recent = hist.filter((h) => h.client_id === r.clientId).slice(0, 3);
     return (
       <li key={r.clientId} style={{ padding: "12px 0" }}>
         <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", alignItems: "center" }}>
           <Link href={`/telegram/${r.clientId}`} className="task-title">{r.name}</Link>
-          <span className={`chip ${r.state === "flagged" ? "ok" : r.state === "needs review" ? "high" : "today"}`}>{later ? "Quiet after Tuesday" : r.state === "flagged late" ? "Flagged after Tuesday" : r.state}</span>
+          <span className={`chip ${r.state === "flagged" ? "ok" : r.state === "needs review" ? "high" : "today"}`}>{r.state === "flagged late" ? "Flagged after Tuesday" : r.state}</span>
         </div>
         <div className="scores" style={{ margin: "8px 0" }}>
-          <div className="score"><b>{r.daysSince}</b><span>Days since contact</span></div>
-          <div className="score"><b style={{ fontSize: 14 }}>{r.lastMessageMs ? formatDateTime(new Date(r.lastMessageMs).toISOString(), tz) : "Never"}</b><span>Last message</span></div>
-          <div className="score"><b style={{ fontSize: 14 }}>{r.lastResponseMs ? formatDateTime(new Date(r.lastResponseMs).toISOString(), tz) : "Never"}</b><span>Last response</span></div>
+          <div className="score"><b>{r.daysSince}</b><span>Days since they last messaged (to Monday)</span></div>
+          <div className="score"><b style={{ fontSize: 14 }}>{r.lastHeardMs ? formatDateTime(new Date(r.lastHeardMs).toISOString(), tz) : "Never"}</b><span>Their last message</span></div>
+          <div className="score"><b style={{ fontSize: 14 }}>{r.lastResponseMs ? formatDateTime(new Date(r.lastResponseMs).toISOString(), tz) : "Never"}</b><span>Our last response</span></div>
         </div>
-        <p className="sub" style={{ marginBottom: 6 }}>Last contact: {formatDateTime(new Date(r.lastContactMs).toISOString(), tz)}.{c?.summary ? ` Latest summary: ${c.summary}` : ""}</p>
+        {c?.summary && <p className="sub" style={{ marginBottom: 6 }}>Latest summary: {c.summary}</p>}
         {recent.length > 0 && (
           <ul className="sub" style={{ margin: "0 0 8px 16px", fontSize: 13 }}>
             {recent.map((h, i) => <li key={i}>{h.direction === "incoming" ? "Client" : h.sender === "michael" ? "Michael" : "Erika"} ({formatDateTime(h.sent_at, tz)}): {h.body.slice(0, 140)}{h.body.length > 140 ? "…" : ""}</li>)}
@@ -94,7 +94,7 @@ export default function QuietClients() {
   return (
     <>
       <div className="page-head">
-        <div><h1>Quiet clients</h1><p className="sub">Clients with no contact for {k?.inactiveDays ?? 14} days are listed for you to review. Nothing is flagged until you decide, after reading their history.</p></div>
+        <div><h1>Quiet clients</h1><p className="sub">Active clients we haven't heard from since {k ? prettyDate(addDays(week, -(k.inactiveDays))) : "the start of last week"} (Tuesday of the previous week), checked through Monday, are listed here. Nothing is flagged until you decide, after reading their history.</p></div>
         <WeekPicker week={week} onChange={setWeek} />
       </div>
       <KpiTabs />
@@ -104,7 +104,8 @@ export default function QuietClients() {
           <div className="card-head"><h2>Week of {prettyDate(week)}</h2><StatusChip s={k.quiet.status} /></div>
           <p className="sub">Target: every quiet client reviewed and flagged to Michael by the end of Tuesday.</p>
           {k.quiet.rows.length === 0 ? <p className="empty">No quiet clients to review.</p> : <ul className="list">{k.quiet.rows.map((r) => card(r))}</ul>}
-          {k.quiet.later.length > 0 && (<><h3 style={{ margin: "14px 0 4px" }}>Became quiet after Tuesday (review next week)</h3><ul className="list">{k.quiet.later.map((r) => card(r, true))}</ul></>)}
+          {k.quiet.reengaged.length > 0 && <p className="sub" style={{ marginTop: 10 }}>Not listed because they messaged after Monday: {k.quiet.reengaged.map((r) => r.name).join(", ")}.</p>}
+          
         </section>
       )}
 

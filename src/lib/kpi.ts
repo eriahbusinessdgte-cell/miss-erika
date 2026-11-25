@@ -131,46 +131,45 @@ export type KFlag = { client_id: string; status: "flagged" | "dismissed"; note: 
 export type QuietRow = {
   clientId: string;
   name: string;
-  lastContactMs: number;
-  lastMessageMs: number | null;
+  lastHeardMs: number | null; // the client's own last message, as of the end of Monday
   lastResponseMs: number | null;
   daysSince: number;
-  quietSinceMs: number;
   flag: KFlag | null;
   state: "needs review" | "flagged" | "flagged late" | "dismissed";
 };
 
-export function lastContact(c: KClient): number {
-  return Math.max(c.last_message_at ?? 0, c.last_response_at ?? 0, c.created_at);
-}
+export type QuietClient = KClient & { last_heard_by_monday: number | null; last_heard_any: number | null };
 
-export function quietKpi(a: { clients: KClient[]; flags: KFlag[]; inactiveDays: number; tuesdayEnd: number; now: number }) {
+/**
+ * Quiet = an ACTIVE client we haven't heard from (no message from them) since the start of the lookback window,
+ * which is Tuesday of the previous week by default (6 days before Monday), checked through the end of Monday.
+ */
+export function quietKpi(a: { clients: QuietClient[]; flags: KFlag[]; weekStart: number; lookbackDays: number; mondayEnd: number; tuesdayEnd: number; now: number }) {
+  const cutoff = a.weekStart - a.lookbackDays * DAY;
   const rows: QuietRow[] = [];
-  const later: QuietRow[] = [];
+  const reengaged: { clientId: string; name: string; at: number }[] = [];
   for (const c of a.clients) {
     if (c.status !== "Active") continue;
-    const last = lastContact(c);
-    const quietSince = last + a.inactiveDays * DAY;
+    const heard = c.last_heard_by_monday;
+    const reference = heard ?? c.created_at; // a client with no messages yet is measured from when they were added
+    if (reference >= cutoff) continue;
     const flag = a.flags.find((f) => f.client_id === c.id) ?? null;
-    const isQuietNow = a.now >= quietSince;
-    if (!isQuietNow && !flag) continue;
-    const base = { clientId: c.id, name: c.name, lastContactMs: last, lastMessageMs: c.last_message_at, lastResponseMs: c.last_response_at, daysSince: Math.floor((a.now - last) / DAY), quietSinceMs: quietSince, flag };
+    // If they have since messaged us (after Monday) and nothing was decided yet, they no longer need flagging.
+    if (!flag && c.last_heard_any !== null && c.last_heard_any > a.mondayEnd) { reengaged.push({ clientId: c.id, name: c.name, at: c.last_heard_any }); continue; }
     const state: QuietRow["state"] = !flag ? "needs review" : flag.status === "dismissed" ? "dismissed" : flag.flagged_at <= a.tuesdayEnd ? "flagged" : "flagged late";
-    const row = { ...base, state };
-    // Clients who only became quiet after Tuesday aren't expected to be flagged by Tuesday; they roll into next week.
-    if (!flag && quietSince > a.tuesdayEnd) later.push(row);
-    else rows.push(row);
+    rows.push({ clientId: c.id, name: c.name, lastHeardMs: heard, lastResponseMs: c.last_response_at, daysSince: Math.floor((a.mondayEnd - reference) / DAY), flag, state });
   }
   const by = (s: QuietRow["state"]) => rows.filter((r) => r.state === s).length;
   const outstanding = by("needs review");
   const status: Status =
     rows.length === 0 ? "NO ACTIVITY" : outstanding > 0 ? (a.now <= a.tuesdayEnd ? "IN PROGRESS" : "NOT MET") : by("flagged late") > 0 ? "COMPLETED LATE" : "MET";
-  return { rows, later, identified: rows.length, flagged: by("flagged"), flaggedLate: by("flagged late"), dismissed: by("dismissed"), outstanding, status };
+  return { rows, reengaged, cutoff, identified: rows.length, flagged: by("flagged"), flaggedLate: by("flagged late"), dismissed: by("dismissed"), outstanding, status };
 }
 
 // ---------- Friday report ----------
 
 export type Fmt = { date: (ms: number) => string; dateTime: (ms: number) => string; day: (ms: number) => string };
+
 
 export function buildKpiReport(a: {
   weekLabel: string;
@@ -204,10 +203,10 @@ export function buildKpiReport(a: {
   L.push(`3. QUIET CLIENTS FLAGGED TO YOU BY TUESDAY – ${quiet.status}`);
   if (quiet.identified === 0) L.push("No quiet clients were identified.");
   else {
-    L.push(`${quiet.identified} quiet client${quiet.identified === 1 ? "" : "s"} identified. Flagged to you by Tuesday: ${quiet.flagged}. Flagged after Tuesday: ${quiet.flaggedLate}. Reviewed and not flagged: ${quiet.dismissed}. Not yet reviewed: ${quiet.outstanding}.`);
-    for (const r of quiet.rows) L.push(`- ${r.name}: ${r.daysSince} days since contact, ${r.state}${r.flag?.note ? ` (${r.flag.note})` : ""}`);
+    L.push(`Active clients we haven't heard from since ${fmt.date(quiet.cutoff)}: ${quiet.identified}.`);
+    L.push(`Flagged to you by Tuesday: ${quiet.flagged}. Flagged after Tuesday: ${quiet.flaggedLate}. Reviewed and not flagged: ${quiet.dismissed}. Not yet reviewed: ${quiet.outstanding}.`);
+    for (const r of quiet.rows) L.push(`- ${r.name}: last message ${r.lastHeardMs ? fmt.date(r.lastHeardMs) : "never"}, ${r.state}${r.flag?.note ? ` (${r.flag.note})` : ""}`);
   }
-  if (quiet.later.length) L.push(`Newly quiet after Tuesday (to review next week): ${quiet.later.map((r) => r.name).join(", ")}.`);
   L.push("");
 
   L.push(`4. DISCOVERY CALLS ATTENDED – ${calls.status}`);

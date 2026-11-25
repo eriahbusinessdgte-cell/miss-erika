@@ -77,30 +77,40 @@ test("KPI 3 counts only sent check-ins; acknowledgement counts once a reply is s
   assert.equal(k.status, "NOT MET");
 });
 
-test("KPI 4 quiet clients: history-aware review, Tuesday deadline", () => {
-  const mk = (id, daysAgo) => ({ id, name: id, status: "Active", created_at: 0, last_message_at: base + 7 * DAY - daysAgo * DAY, last_response_at: null });
-  const clients = [mk("q1", 20), mk("q2", 21), mk("ok", 3), mk("new", 15)];
-  const now = base + 7 * DAY; // 14-day rule
-  const tuesdayEnd = base + 2 * DAY - 1;
-  const flags = [{ client_id: "q1", status: "flagged", note: "", flagged_at: base + H, resolved_at: null }];
-  const k = quietKpi({ clients, flags, inactiveDays: 14, tuesdayEnd, now });
-  assert.equal(k.identified, 2); // q1 flagged, q2 needs review; 'ok' not quiet; 'new' became quiet after Tuesday
-  assert.equal(k.flagged, 1); assert.equal(k.outstanding, 1);
-  assert.equal(k.later.length, 1);
-  assert.equal(k.status, "NOT MET");
-  const k2 = quietKpi({ clients, flags: [...flags, { client_id: "q2", status: "dismissed", note: "on holiday", flagged_at: base + 3 * DAY, resolved_at: null }], inactiveDays: 14, tuesdayEnd, now });
-  assert.equal(k2.dismissed, 1); assert.equal(k2.status, "MET");
-  const k3 = quietKpi({ clients, flags: [...flags, { client_id: "q2", status: "flagged", note: "", flagged_at: base + 4 * DAY, resolved_at: null }], inactiveDays: 14, tuesdayEnd, now });
-  assert.equal(k3.flaggedLate, 1); assert.equal(k3.status, "COMPLETED LATE");
-  // inactivity rule is configurable
-  assert.equal(quietKpi({ clients, flags: [], inactiveDays: 30, tuesdayEnd, now }).identified, 0);
+test("KPI 4: active clients not heard from since Tuesday of the previous week", () => {
+  const weekStart = base; // Monday
+  const mondayEnd = base + DAY - 1, tuesdayEnd = base + 2 * DAY - 1;
+  const prevTue = base - 6 * DAY;
+  const mk = (id, heard, status = "Active", created = 0) => ({ id, name: id, status, created_at: created, last_message_at: heard, last_response_at: null, last_heard_by_monday: heard, last_heard_any: heard });
+  const clients = [
+    mk("quiet1", prevTue - H),       // last message just before the window: quiet
+    mk("ok", prevTue + H),           // messaged inside the window: not quiet
+    mk("monday", base + 2 * H),      // messaged this Monday: not quiet
+    mk("paused", prevTue - DAY, "Paused"), // not active: never listed
+    mk("never", null, "Active", prevTue - 5 * DAY), // added before the window, never messaged: quiet
+    mk("newbie", null, "Active", prevTue + DAY),    // added inside the window: not quiet
+  ];
+  const run = (flags, now) => quietKpi({ clients, flags, weekStart, lookbackDays: 6, mondayEnd, tuesdayEnd, now });
+  const k = run([], base + DAY);
+  assert.deepEqual(k.rows.map((r) => r.clientId).sort(), ["never", "quiet1"]);
+  assert.equal(k.status, "IN PROGRESS");
+  assert.equal(run([], base + 3 * DAY).status, "NOT MET");
+  const f = (id, status, at) => ({ client_id: id, status, note: "", flagged_at: at, resolved_at: null });
+  assert.equal(run([f("quiet1", "flagged", base + H), f("never", "dismissed", base + 3 * DAY)], base + 4 * DAY).status, "MET");
+  assert.equal(run([f("quiet1", "flagged", base + 3 * DAY), f("never", "flagged", base + H)], base + 4 * DAY).status, "COMPLETED LATE");
+  // a client who has messaged since Monday and wasn't decided yet is no longer quiet
+  const re = [{ ...mk("late", null, "Active", prevTue - 5 * DAY), last_heard_any: base + DAY + H }];
+  const kr = quietKpi({ clients: re, flags: [], weekStart, lookbackDays: 6, mondayEnd, tuesdayEnd, now: base + 3 * DAY });
+  assert.equal(kr.identified, 0); assert.equal(kr.reengaged.length, 1);
+  // the lookback is configurable
+  assert.equal(quietKpi({ clients, flags: [], weekStart, lookbackDays: 30, mondayEnd, tuesdayEnd, now: base }).identified, 0);
 });
 
 test("Friday report uses verified records only", () => {
   const ig = igKpi({ leads: [], messages: [], weekStart, weekEnd, now: base, ctx });
   const calls = callsKpi({ calls: [{ id: "1", name: "Sam", handle: "sam", source: "comment", booked_on: null, call_at: base + DAY, status: "Attended" }, { id: "2", name: "Pat", handle: "pat", source: "story reply", booked_on: null, call_at: base + DAY, status: "Pending" }], weekStart, weekEnd, fridayEnd, now: fridayEnd + H });
   const checkins = checkinKpi({ clients: [], checkins: [], drafts: [], outgoing: [], mondayDay: dn(0), mondayEnd: base + DAY - 1, now: base, ctx });
-  const quiet = quietKpi({ clients: [], flags: [], inactiveDays: 14, tuesdayEnd: base + 2 * DAY, now: base });
+  const quiet = quietKpi({ clients: [], flags: [], weekStart, lookbackDays: 6, mondayEnd: base + DAY - 1, tuesdayEnd: base + 2 * DAY, now: base });
   const body = buildKpiReport({ weekLabel: "23 to 27 November", ig, calls, checkins, quiet, fmt: { date: () => "d", dateTime: () => "dt", day: () => "x" } });
   assert.match(body, /1 of 4 calls attended/);
   assert.match(body, /- Sam \(@sam\), comment/);
