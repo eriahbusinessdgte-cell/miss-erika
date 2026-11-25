@@ -56,6 +56,8 @@ export default function LeadPage() {
   useEffect(() => { if (ai === "idle") { load(); reloadLeads(); } }, [ai]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const router = useRouter();
+  const [editOpen, setEditOpen] = useState(false);
+  const [ed, setEd] = useState({ name: "", handle: "" });
   const deleteLead = async () => {
     if (!window.confirm("Delete this lead and all its messages and drafts? This can't be undone. (Archive keeps them.)")) return;
     const { error } = await supabase.from("ig_leads").delete().eq("id", id);
@@ -203,11 +205,27 @@ export default function LeadPage() {
           <p className="sub">{lead.handle ? `@${lead.handle} · ` : ""}{SOURCE_LABEL[lead.source]} · {lead.stage}{lead.archived ? " · Archived" : ""}</p>
         </div>
         <div className="row">
+          <button className="btn" onClick={() => { setEd({ name: lead.name, handle: lead.handle || "" }); setEditOpen(true); }}>Edit details</button>
           <button className="btn" onClick={async () => { await patchLead({ archived: !lead.archived }); if (!lead.archived) router.push("/instagram"); }}>{lead.archived ? "Restore" : "Archive"}</button>
           <button className="btn" onClick={deleteLead}>Delete</button>
         </div>
       </div>
       {err && <div className="banner error" role="alert">{err}</div>}
+      {editOpen && (
+        <div className="modal-back" role="dialog" aria-modal="true" aria-label="Edit lead">
+          <form className="modal" onSubmit={async (e) => {
+            e.preventDefault();
+            if (!ed.name.trim()) return setErr("The name can't be empty.");
+            await patchLead({ name: ed.name.trim(), handle: ed.handle.trim().replace(/^@/, "") });
+            setEditOpen(false);
+          }}>
+            <h2>Edit lead</h2>
+            <div className="field"><label htmlFor="e-name">Name</label><input id="e-name" type="text" required value={ed.name} onChange={(e) => setEd({ ...ed, name: e.target.value })} /></div>
+            <div className="field"><label htmlFor="e-handle">Instagram username</label><input id="e-handle" type="text" value={ed.handle} onChange={(e) => setEd({ ...ed, handle: e.target.value })} placeholder="@username" /></div>
+            <div className="row"><button className="btn primary" type="submit">Save</button><button className="btn" type="button" onClick={() => setEditOpen(false)}>Cancel</button></div>
+          </form>
+        </div>
+      )}
       {lead.needs_michael && (
         <div className="banner error">
           <b>Waiting for Michael:</b> {lead.michael_reason}{" "}

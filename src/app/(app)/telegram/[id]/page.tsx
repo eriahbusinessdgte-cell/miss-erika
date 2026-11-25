@@ -15,6 +15,8 @@ export default function ClientChat() {
   const { settings, reloadClients } = useAppData();
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const [editOpen, setEditOpen] = useState(false);
+  const [ed, setEd] = useState({ name: "", telegram_username: "", status: "Active", notes: "" });
   const tz = settings?.timezone || "Asia/Manila";
   const aiState = useAnalysisState(id);
 
@@ -214,6 +216,7 @@ export default function ClientChat() {
           <p className="sub">{client.telegram_username ? `@${client.telegram_username} · ` : ""}{client.status}</p>
         </div>
         <div className="row">
+          <button className="btn" onClick={() => { setEd({ name: client.name, telegram_username: client.telegram_username || "", status: client.status, notes: (client as Client & { notes?: string }).notes || "" }); setEditOpen(true); }}>Edit details</button>
           <button className="btn" onClick={async () => {
             const archiving = client.status !== "Archived";
             const { error } = await supabase.from("clients").update({ status: archiving ? "Archived" : "Active" }).eq("id", id);
@@ -231,6 +234,27 @@ export default function ClientChat() {
         </div>
       </div>
       {err && <div className="banner error" role="alert">{err}</div>}
+      {editOpen && (
+        <div className="modal-back" role="dialog" aria-modal="true" aria-label="Edit client">
+          <form className="modal" onSubmit={async (e) => {
+            e.preventDefault();
+            if (!ed.name.trim()) return setErr("The name can't be empty.");
+            const { error } = await supabase.from("clients").update({ name: ed.name.trim(), telegram_username: ed.telegram_username.trim().replace(/^@/, ""), status: ed.status, notes: ed.notes }).eq("id", id);
+            if (error) return setErr(error.message);
+            setEditOpen(false); await load(); reloadClients();
+          }}>
+            <h2>Edit client</h2>
+            <div className="field"><label htmlFor="e-name">Name</label><input id="e-name" type="text" required value={ed.name} onChange={(e) => setEd({ ...ed, name: e.target.value })} /></div>
+            <div className="two">
+              <div className="field"><label htmlFor="e-user">Telegram username</label><input id="e-user" type="text" value={ed.telegram_username} onChange={(e) => setEd({ ...ed, telegram_username: e.target.value })} placeholder="@username" /></div>
+              <div className="field"><label htmlFor="e-status">Status</label>
+                <select id="e-status" value={ed.status} onChange={(e) => setEd({ ...ed, status: e.target.value })}><option>Active</option><option>Paused</option><option>Inactive</option><option>Archived</option></select></div>
+            </div>
+            <div className="field"><label htmlFor="e-notes">Notes</label><textarea id="e-notes" value={ed.notes} onChange={(e) => setEd({ ...ed, notes: e.target.value })} /></div>
+            <div className="row"><button className="btn primary" type="submit">Save</button><button className="btn" type="button" onClick={() => setEditOpen(false)}>Cancel</button></div>
+          </form>
+        </div>
+      )}
 
       {client.needs_michael && (
         <div className="banner error">
