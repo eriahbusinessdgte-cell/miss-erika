@@ -95,3 +95,21 @@ export type ScoreRow = {
   body: number | null;
   recorded_at: string;
 };
+
+export type DailyReport = {
+  id: string;
+  report_date: string;
+  version: number;
+  status: "draft" | "sent";
+  body: string;
+  edited: boolean;
+  is_update: boolean;
+  period_start: string | null;
+  period_end: string | null;
+  client_count: number;
+  replies_sent: number;
+  replies_pending: number;
+  michael_count: number;
+  sent_at: string | null;
+  created_at: string;
+};
