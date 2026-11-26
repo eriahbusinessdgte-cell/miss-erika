@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useAppData } from "@/components/AppData";
-import { todayInTz, formatDateTime } from "@/lib/core";
+import { formatDateTime } from "@/lib/core";
+import { madridDay } from "@/lib/shift";
 import { scanState } from "@/lib/scan";
 
 /**
@@ -24,7 +25,7 @@ export function ScanCard() {
     now,
     settings.scan_requested_at ? new Date(settings.scan_requested_at) : null,
     settings.scan_last_at ? new Date(settings.scan_last_at) : null,
-    (d) => todayInTz(tz, d)
+    madridDay
   );
   if (st.kind === "done") return null;
 

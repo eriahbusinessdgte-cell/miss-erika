@@ -13,6 +13,9 @@ export type Settings = {
   avatar_url?: string | null;
   scan_requested_at?: string | null;
   scan_last_at?: string | null;
+  shift_started_at?: string | null;
+  shift_ended_at?: string | null;
+  shift_date?: string | null;
 };
 
 export type Task = {

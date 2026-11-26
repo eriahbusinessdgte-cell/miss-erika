@@ -8,9 +8,11 @@ import { Icon } from "@/components/Icon";
 import { TaskForm, TaskRow } from "@/components/TaskParts";
 import { HotSeatCard } from "@/components/HotSeatCard";
 import { ScanCard } from "@/components/ScanCard";
+import { StartWorkCard, FinishWorkButton } from "@/components/ShiftCard";
+import { madridDay } from "@/lib/shift";
 import type { Task } from "@/lib/types";
 import { followupState } from "@/lib/ig";
-import { bucketOf, compareTasks, greetingFor, prettyDate, todayInTz, weekdayOf } from "@/lib/core";
+import { bucketOf, compareTasks, greetingFor, prettyDate, weekdayOf } from "@/lib/core";
 
 /** Current time in the chosen time zone, refreshed every 20 seconds. Empty on first paint to avoid a server/browser mismatch. */
 function Clock({ tz }: { tz: string }) {
@@ -72,7 +74,7 @@ function timeAgo(iso: string | null): string {
 }
 
 export default function Dashboard() {
-  const { settings, tasks, clients, leads: allLeads, today } = useAppData();
+  const { settings, tasks, clients, leads: allLeads, today, shiftOn } = useAppData();
   const leads = allLeads.filter((l) => !l.archived);
   const [quietOpen, setQuietOpen] = useState<{ id: string; client_id: string; note: string }[]>([]);
   useEffect(() => {
@@ -91,7 +93,7 @@ export default function Dashboard() {
   const upcoming = open.filter((t) => bucketOf(t, today) === "upcoming").length;
 
   const report = tasks.find((t) => t.kind === "daily_report" && t.ref_date === today);
-  const scanDone = !!settings.scan_last_at && todayInTz(settings.timezone, new Date(settings.scan_last_at)) === today;
+  const scanDone = !!settings.scan_last_at && madridDay(new Date(settings.scan_last_at)) === today;
   const manager = settings.manager_name.split(" ")[0];
 
   const total = todays.length + doneTodayTasks.length;
@@ -119,7 +121,8 @@ export default function Dashboard() {
           <p className="sub">Let's get your daily tasks done and keep your clients looked after.</p>
         </div>
         <div className="head-right">
-          <span className="date-pill"><Icon name="calendar" /> {prettyDate(today)}<Clock tz={settings.timezone} /></span>
+          <span className="date-pill"><Icon name="calendar" /> {prettyDate(today)} · Michael's day<Clock tz={settings.timezone} /></span>
+          {shiftOn && <FinishWorkButton reportPending={!!report && report.status !== "Done"} />}
           <Link className="bell" href="/tasks" aria-label={overdue.length ? `${overdue.length} overdue tasks` : "Tasks"}>
             <Icon name="bell" />
             {overdue.length > 0 && <span className="dot" />}
@@ -127,8 +130,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <ScanCard />
+      {!shiftOn ? <StartWorkCard /> : <ScanCard />}
 
+      {shiftOn && (
+      <>
       <div className="tiles">
         <div className="tile violet"><span className="ico"><Icon name="calendar" size={22} /></span><div><div className="num">{todays.length}</div><div className="cap">Due today</div></div></div>
         <div className="tile red"><span className="ico"><Icon name="alert" size={22} /></span><div><div className="num">{overdue.length}</div><div className="cap">Overdue</div></div></div>
@@ -274,6 +279,9 @@ export default function Dashboard() {
         </section>
         <Soon title="Upcoming calls and weekly KPIs" icon="kpi" stage="Coming in Stage 5" text="Booked discovery calls, attendance and your four KPIs for the week." />
       </div>
+
+      </>
+      )}
 
       {editing !== undefined && <TaskForm task={editing} onClose={() => setEditing(undefined)} />}
     </>

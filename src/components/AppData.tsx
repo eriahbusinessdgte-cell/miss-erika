@@ -1,5 +1,6 @@
 "use client";
 
+import { shiftActive, workDay } from "@/lib/shift";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Client, IgLead, Resource, Settings, Task } from "@/lib/types";
@@ -7,7 +8,6 @@ import {
   DAILY_REPORT_TITLE,
   isWorkingDate,
   nextDueDate,
-  todayInTz,
   type Recurrence,
 } from "@/lib/core";
 import { SEED_RESOURCES } from "@/lib/seed";
@@ -47,6 +47,7 @@ type Ctx = {
   reloadLeads: () => Promise<void>;
   reloadClients: () => Promise<void>;
   today: string;
+  shiftOn: boolean;
   saveTask: (t: TaskInput) => Promise<boolean>;
   deleteTask: (id: string) => Promise<void>;
   setTaskStatus: (task: Task, status: Task["status"]) => Promise<void>;
@@ -75,7 +76,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [resources, setResources] = useState<Resource[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [leads, setLeads] = useState<IgLead[]>([]);
-  const [today, setToday] = useState<string>(() => todayInTz("Asia/Manila"));
+  const [tick, setTick] = useState<number>(() => Date.now());
   const ensuring = useRef(false);
 
   const fail = useCallback((what: string, message: string) => {
@@ -151,7 +152,6 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       }
       if (cancelled) return;
       setSettings(s as Settings);
-      setToday(todayInTz((s as Settings).timezone));
       await Promise.all([loadTasks(), loadResources(), reloadClients(), reloadLeads()]);
       if (!cancelled) setReady(true);
     })();
@@ -160,18 +160,18 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase, fail, loadTasks, loadResources, reloadClients, reloadLeads]);
 
-  // Keep "today" correct if the app stays open past midnight in the chosen time zone.
+  // Re-check every minute: the shift may have just ended, or Michael's calendar may have rolled over.
   useEffect(() => {
-    if (!settings) return;
-    const tz = settings.timezone;
-    setToday(todayInTz(tz));
-    const id = setInterval(() => setToday(todayInTz(tz)), 60_000);
+    const id = setInterval(() => setTick(Date.now()), 60_000);
     return () => clearInterval(id);
-  }, [settings]);
+  }, []);
+  useEffect(() => setTick(Date.now()), [settings]);
+  const shiftOn = shiftActive(settings?.shift_started_at, settings?.shift_ended_at, settings?.shift_date, tick);
+  const today = workDay(settings?.shift_started_at, settings?.shift_ended_at, settings?.shift_date, tick);
 
-  // Daily recurring Telegram tasks (Monday to Friday).
+  // Daily tasks are created only once Erika presses Start working, for that shift's date.
   useEffect(() => {
-    if (!ready || !settings || ensuring.current) return;
+    if (!ready || !settings || !shiftOn || ensuring.current) return;
     ensuring.current = true;
     (async () => {
       try {
@@ -213,7 +213,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         ensuring.current = false;
       }
     })();
-  }, [ready, settings, today, tasks, supabase, fail, loadTasks]);
+  }, [ready, settings, shiftOn, today, tasks, supabase, fail, loadTasks]);
 
   const saveTask = useCallback(
     async (t: TaskInput) => {
@@ -350,6 +350,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     leads,
     reloadLeads,
     today,
+    shiftOn,
     saveTask,
     deleteTask,
     setTaskStatus,
