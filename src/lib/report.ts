@@ -30,22 +30,31 @@ export function buildReport(args: {
   clients: RClient[];
   messages: RMessage[];
   quiet?: { since: string; clients: { name: string; lastHeard: string }[] };
+  /** When given, the report covers exactly these chats (the ones marked unread) instead of messages saved in the period. */
+  unreadIds?: string[];
 }): BuiltReport {
   const entries: { name: string; rank: number; text: string; michael?: string }[] = [];
   let sent = 0;
   let pending = 0;
   let unanalysed = 0;
 
+  const byUnread = !!args.unreadIds;
+  const unread = new Set(args.unreadIds || []);
   for (const c of args.clients) {
+    if (byUnread && !unread.has(c.id)) continue;
     const mine = args.messages.filter((m) => m.client_id === c.id);
-    const fresh = mine.filter((m) => m.direction === "incoming" && m.created_at >= args.periodStart && m.created_at < args.periodEnd);
+    const fresh = byUnread
+      ? mine.filter((m) => m.direction === "incoming")
+      : mine.filter((m) => m.direction === "incoming" && m.created_at >= args.periodStart && m.created_at < args.periodEnd);
     if (fresh.length === 0) continue;
-    const newest = Math.max(...fresh.map((m) => m.created_at));
-    const replied = mine.some((m) => m.direction === "outgoing" && m.created_at > newest);
+    // By unread chat we compare real send times, because history imported together shares one saved time.
+    const at = (m: RMessage) => (byUnread ? m.sent_at : m.created_at);
+    const newest = Math.max(...fresh.map(at));
+    const replied = mine.some((m) => m.direction === "outgoing" && at(m) > newest);
     if (replied) sent++;
     else pending++;
 
-    const withAnalysis = [...fresh].filter((m) => m.analysis).sort((a, b) => b.created_at - a.created_at)[0];
+    const withAnalysis = [...fresh].filter((m) => m.analysis).sort((a, b) => at(b) - at(a))[0];
     const a = withAnalysis?.analysis || null;
     const name = c.name.toUpperCase();
     let text: string;
@@ -72,7 +81,7 @@ export function buildReport(args: {
 
   const lines: string[] = [`Hi Michael, here's the client update for ${args.prettyDate}.`];
   if (n === 0) {
-    lines.push("No client messages came in for this period.");
+    lines.push(byUnread ? "No unread client chats for this update." : "No client messages came in for this period.");
   } else {
     lines.push(`${n} client${n === 1 ? "" : "s"} sent messages.`);
     if (pending === 0) lines.push(n === 1 ? "I've replied to them." : "I've replied to all of them.");

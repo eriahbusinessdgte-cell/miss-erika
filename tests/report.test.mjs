@@ -53,3 +53,21 @@ test("Monday/Tuesday report lists quiet clients; none listed when there are none
   const none = buildReport({ prettyDate: "d", periodStart: 100, periodEnd: 5000, clients, messages: msgs, quiet: { since: "x", clients: [] } });
   assert.doesNotMatch(none.body, /Quiet clients/);
 });
+
+test("unread mode: only chats marked unread, using real send times, history included", () => {
+  const ms = [
+    { client_id: "a", direction: "incoming", created_at: 9000, sent_at: 100, analysis: an({}) },
+    { client_id: "a", direction: "outgoing", created_at: 9000, sent_at: 200, analysis: null }, // replied after (real time)
+    { client_id: "b", direction: "incoming", created_at: 9000, sent_at: 300, analysis: null }, // history, not analysed
+    { client_id: "c", direction: "incoming", created_at: 9000, sent_at: 50, analysis: an({}) }, // not unread
+  ];
+  const x = buildReport({ prettyDate: "d", periodStart: 0, periodEnd: 1, clients, messages: ms, unreadIds: ["a", "b"] });
+  assert.deepEqual(x.counts, { clients: 2, sent: 1, pending: 1, michael: 1, unanalysed: 1 });
+  assert.doesNotMatch(x.body, /QUIET CARA/);
+  assert.match(x.body, /ANITA GOSSOW/);
+  assert.match(x.body, /BEN COLE – NOT ANALYSED YET/);
+});
+test("unread mode: nothing unread", () => {
+  const x = buildReport({ prettyDate: "d", periodStart: 0, periodEnd: 1, clients, messages: msgs, unreadIds: [] });
+  assert.match(x.body, /No unread client chats for this update\./);
+});
