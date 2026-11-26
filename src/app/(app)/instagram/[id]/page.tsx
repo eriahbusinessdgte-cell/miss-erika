@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatDateTime, utcToZonedInput, zonedToUtc } from "@/lib/core";
 import { ALL_STAGES, SOURCE_LABEL, followupState, followupText, openerFor, placeholdersIn, whatsappLine } from "@/lib/ig";
 import { INSTAGRAM, enqueueAnalysis, useAnalysisState } from "@/lib/analysisQueue";
+import { VoiceNote, isBareVoice } from "@/components/VoiceNote";
 import type { IgDraft, IgLead, IgMessage } from "@/lib/types";
 
 export default function LeadPage() {
@@ -89,6 +90,15 @@ export default function LeadPage() {
   const needsAnalysis = unreplied.length > 0 && !unreplied.every((m) => m.analyzed) && ai === "idle";
   const fu = followupState(lead, Date.now());
   const holes = active ? placeholdersIn(active.body) : [];
+
+  /** Puts the words of a voice note into a message that was saved as just "[voice message]". */
+  async function addVoiceText(m: IgMessage, spoken: string) {
+    setErr(null);
+    const { error } = await supabase.from("ig_messages").update({ body: `[Voice message] ${spoken}` }).eq("id", m.id);
+    if (error) return setErr(error.message);
+    await load();
+    if (m.direction === "incoming") enqueueAnalysis(id, INSTAGRAM, m.id);
+  }
 
   async function savePaste(e: React.FormEvent) {
     e.preventDefault();
@@ -248,7 +258,7 @@ export default function LeadPage() {
               <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : m.sender === "michael" ? "out michael" : "out"}`}>
                 {m.sender === "michael" && <span className="who">Michael replied personally</span>}
                 {m.body}
-                <span className="when"><button type="button" className="btn" style={{ padding: "1px 8px", fontSize: 11 }} aria-label="Delete this message" onClick={() => deleteMessage(m)}>Delete message</button></span>
+                <span className="when"><button type="button" className="btn" style={{ padding: "1px 8px", fontSize: 11 }} aria-label="Delete this message" onClick={() => deleteMessage(m)}>Delete message</button>{isBareVoice(m.body) && <> <VoiceNote label="Add voice message text" onText={(t) => addVoiceText(m, t)} /></>}</span>
                 {m.direction === "incoming" && m.history_only && (
                   <span className="when">
                     Saved to history only ·{" "}
@@ -297,7 +307,7 @@ export default function LeadPage() {
               <select id="paste-who" value={who} onChange={(e) => setWho(e.target.value as "lead" | "erika" | "michael")}>
                 <option value="lead">The lead</option><option value="erika">Me (Erika)</option><option value="michael">Michael</option>
               </select></div>
-            <div className="field"><label htmlFor="paste">{who === "lead" ? "Paste their message" : who === "erika" ? "Paste what you replied" : "Paste what Michael replied"}</label><textarea id="paste" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste exactly what was written" /></div>
+            <div className="field"><label htmlFor="paste">{who === "lead" ? "Paste their message" : who === "erika" ? "Paste what you replied" : "Paste what Michael replied"}</label><div><VoiceNote label="Add voice message" onText={(t) => setText((x) => (x.trim() ? x.trim() + "\n" : "") + `[Voice message] ${t}`)} /></div><textarea id="paste" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste exactly what was written" /></div>
             {who === "lead" ? (
               <label className="checkrow"><input type="checkbox" checked={historyOnly} onChange={(e) => setHistoryOnly(e.target.checked)} /> Save to history only. Don&apos;t write a reply.</label>
             ) : (
@@ -312,7 +322,7 @@ export default function LeadPage() {
               <button className="btn" onClick={() => setMOpen(true)}>Add Michael&apos;s response</button>
             ) : (
               <form onSubmit={saveMichael} style={{ display: "grid", gap: 10 }}>
-                <div className="field"><label htmlFor="m-text">What Michael replied to this lead</label><textarea id="m-text" rows={4} value={mText} onChange={(e) => setMText(e.target.value)} placeholder="Paste Michael's reply exactly as he sent it" /></div>
+                <div className="field"><label htmlFor="m-text">What Michael replied to this lead</label><div><VoiceNote label="Add voice message" onText={(t) => setMText((x) => (x.trim() ? x.trim() + "\n" : "") + `[Voice message] ${t}`)} /></div><textarea id="m-text" rows={4} value={mText} onChange={(e) => setMText(e.target.value)} placeholder="Paste Michael's reply exactly as he sent it" /></div>
                 <div className="field"><label htmlFor="m-when">When Michael sent it ({tz})</label><input id="m-when" type="datetime-local" value={mWhen} onChange={(e) => setMWhen(e.target.value)} max={utcToZonedInput(new Date().toISOString(), tz)} /></div>
                 <div className="row"><button className="btn primary" type="submit">Save Michael&apos;s response</button><button className="btn" type="button" onClick={() => setMOpen(false)}>Cancel</button></div>
               </form>

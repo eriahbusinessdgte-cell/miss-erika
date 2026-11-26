@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatDateTime, zonedToUtc, utcToZonedInput } from "@/lib/core";
 import { extractScores } from "@/lib/erika";
 import { CHECKIN, enqueueAnalysis, useAnalysisState } from "@/lib/analysisQueue";
+import { VoiceNote, isBareVoice } from "@/components/VoiceNote";
 import type { Client, ClientMessage, ReplyDraft, ScoreRow } from "@/lib/types";
 
 export default function ClientChat() {
@@ -72,6 +73,16 @@ export default function ClientChat() {
   const unreplied = msgs.filter((m) => m.direction === "incoming" && !m.history_only && new Date(m.created_at).getTime() > lastOut);
   const failed = unreplied.find((m) => m.analysis_error);
   const needsAnalysis = unreplied.length > 0 && !unreplied.every((m) => m.analyzed) && aiState === "idle";
+
+  /** Puts the words of a voice note into a message that was saved as just "[voice message]". */
+  async function addVoiceText(m: ClientMessage, spoken: string) {
+    setErr(null);
+    const { error } = await supabase.from("client_messages").update({ body: `[Voice message] ${spoken}` }).eq("id", m.id);
+    if (error) return setErr(error.message);
+    await load();
+    // A client's voice note is summarised right away so it can go in the next report.
+    if (m.direction === "incoming") enqueueAnalysis(id, undefined, m.id);
+  }
 
   async function savePaste(e: React.FormEvent) {
     e.preventDefault();
@@ -278,7 +289,7 @@ export default function ClientChat() {
               <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : m.sender === "michael" ? "out michael" : "out"}`}>
                 {m.sender === "michael" && <span className="who">Michael replied personally</span>}
                 {m.body}
-                <span className="when"><button type="button" className="btn" style={{ padding: "1px 8px", fontSize: 11 }} aria-label="Delete this message" onClick={() => deleteMessage(m)}>Delete message</button></span>
+                <span className="when"><button type="button" className="btn" style={{ padding: "1px 8px", fontSize: 11 }} aria-label="Delete this message" onClick={() => deleteMessage(m)}>Delete message</button>{isBareVoice(m.body) && <> <VoiceNote label="Add voice message text" onText={(t) => addVoiceText(m, t)} /></>}</span>
                 {m.direction === "incoming" && m.history_only && (
                   <span className="when">
                     Saved to history only ·{" "}
@@ -341,6 +352,7 @@ export default function ClientChat() {
             </div>
             <div className="field">
               <label htmlFor="paste">{who === "client" ? "Paste the client's message" : who === "erika" ? "Paste what you replied" : "Paste what Michael replied"}</label>
+              <div><VoiceNote label="Add voice message" onText={(t) => setText((x) => (x.trim() ? x.trim() + "\n" : "") + `[Voice message] ${t}`)} /></div>
               <textarea id="paste" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste exactly what was written" />
             </div>
             {who === "client" ? (
@@ -360,7 +372,7 @@ export default function ClientChat() {
               <button className="btn" onClick={() => setMOpen(true)}>Add Michael&apos;s response</button>
             ) : (
               <form onSubmit={saveMichael} style={{ display: "grid", gap: 10 }}>
-                <div className="field"><label htmlFor="m-text">What Michael replied to this client</label><textarea id="m-text" rows={4} value={mText} onChange={(e) => setMText(e.target.value)} placeholder="Paste Michael's reply exactly as he sent it" /></div>
+                <div className="field"><label htmlFor="m-text">What Michael replied to this client</label><div><VoiceNote label="Add voice message" onText={(t) => setMText((x) => (x.trim() ? x.trim() + "\n" : "") + `[Voice message] ${t}`)} /></div><textarea id="m-text" rows={4} value={mText} onChange={(e) => setMText(e.target.value)} placeholder="Paste Michael's reply exactly as he sent it" /></div>
                 <div className="field"><label htmlFor="m-when">When Michael sent it ({tz})</label><input id="m-when" type="datetime-local" value={mWhen} onChange={(e) => setMWhen(e.target.value)} max={utcToZonedInput(new Date().toISOString(), tz)} /></div>
                 <div className="row"><button className="btn primary" type="submit">Save Michael&apos;s response</button><button className="btn" type="button" onClick={() => setMOpen(false)}>Cancel</button></div>
               </form>
