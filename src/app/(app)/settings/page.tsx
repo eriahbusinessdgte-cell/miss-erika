@@ -22,23 +22,38 @@ export default function SettingsPage() {
   /** Shrinks the picture to a small square so it stays tiny (about 20 KB) and needs no file storage. */
   function pickPhoto(file: File | undefined) {
     if (!file) return;
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const size = 256;
-      const c = document.createElement("canvas");
-      c.width = c.height = size;
-      const side = Math.min(img.width, img.height);
-      c.getContext("2d")?.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
-      URL.revokeObjectURL(url);
-      setD((x) => ({ ...x, avatar_url: c.toDataURL("image/jpeg", 0.85) }));
+    setErr(null);
+    const draw = (blob: Blob) => {
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        const size = 256;
+        const c = document.createElement("canvas");
+        c.width = c.height = size;
+        const side = Math.min(img.width, img.height);
+        c.getContext("2d")?.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+        URL.revokeObjectURL(url);
+        setD((x) => ({ ...x, avatar_url: c.toDataURL("image/jpeg", 0.85) }));
+      };
+      img.onerror = async () => {
+        URL.revokeObjectURL(url);
+        // iPhone photos (HEIC) can't be opened by Chrome, so convert them first.
+        if (blob === file && /heic|heif/i.test(file.type + file.name)) {
+          try {
+            const { default: heic2any } = await import("heic2any");
+            const out = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 });
+            return draw(Array.isArray(out) ? out[0] : out);
+          } catch {
+            /* fall through */
+          }
+        }
+        setErr("That file couldn't be read as a picture. Try a JPG or PNG, or take a screenshot of the photo.");
+      };
+      img.src = url;
     };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      setErr("That file couldn't be read as a picture. Try a JPG or PNG.");
-    };
-    img.src = url;
+    draw(file);
   }
+
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
