@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAppData } from "@/components/AppData";
+import { Icon } from "@/components/Icon";
 import { formatDateTime } from "@/lib/core";
 import { scanState, nextCheckAt } from "@/lib/scan";
 
@@ -33,24 +34,24 @@ export function ScanCard() {
 
   if (st.kind === "pending") {
     return (
-      <section className="card scan-card">
-        <div>
-          <h2>Telegram scan requested</h2>
-          <p className="sub">It starts at the next check, around {formatDateTime(nextCheckAt(now).toISOString(), tz)}. Keep your Mac on with Chrome open. It scans once, then stops.</p>
+      <section className="card scan-slim">
+        <div className="ico"><Icon name="telegram" size={18} /></div>
+        <div className="txt">
+          <div className="ttl">Scan requested</div>
+          <p className="sub"><span className="dot wait" />Starts around {formatDateTime(nextCheckAt(now).toISOString(), tz)}. Keep your Mac on with Chrome open.</p>
         </div>
+        <div className="waiting">Waiting…</div>
       </section>
     );
   }
   return (
-    <section className="card scan-card">
-      <div>
-        <h2>Telegram scan &amp; import</h2>
-        <p className="sub">
-          {st.lastAt ? `Last scan finished ${formatDateTime(st.lastAt.toISOString(), tz)}. ` : "No scan yet. "}
-          Scans only run when you ask. It brings in missed client messages and marks waiting chats unread.
-        </p>
+    <section className="card scan-slim">
+      <div className="ico"><Icon name="telegram" size={18} /></div>
+      <div className="txt">
+        <div className="ttl">Telegram scan</div>
+        <p className="sub"><span className="dot" />{st.lastAt ? `Last scan ${formatDateTime(st.lastAt.toISOString(), tz)}. ` : "No scan yet. "}Runs only when you ask.</p>
       </div>
-      <button className="btn primary" onClick={start} disabled={busy}>{busy ? "Requesting…" : "Scan Telegram now"}</button>
+      <button className="btn primary" onClick={start} disabled={busy}><Icon name="refresh" size={15} /> {busy ? "Requesting…" : "Scan now"}</button>
     </section>
   );
 }

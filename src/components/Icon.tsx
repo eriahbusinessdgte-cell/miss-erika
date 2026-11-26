@@ -18,6 +18,7 @@ const PATHS: Record<string, React.ReactNode> = {
   star: (<><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" /></>),
   logout: (<><path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M16 8l4 4-4 4M20 12H9" /></>),
   chevron: (<><path d="m6 9 6 6 6-6" /></>),
+  refresh: (<><path d="M20 11a8 8 0 0 0-14.5-3.5L4 9M4 4v5h5M4 13a8 8 0 0 0 14.5 3.5L20 15M20 20v-5h-5" /></>),
   arrow: (<><path d="M5 12h14M13 6l6 6-6 6" /></>),
 };
 
