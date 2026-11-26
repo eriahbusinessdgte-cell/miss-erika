@@ -63,7 +63,7 @@ export function TelegramImport({ onClose }: { onClose: () => void }) {
         }
         const fresh = lastN(chat, limit === "all" ? "all" : Number(limit)).filter((m) => !have.some((h) => sameMsg(h, m)));
         const rows = fresh.map((m) => ({
-          client_id: clientId, direction: m.fromMe ? "outgoing" : "incoming", sender: "erika", body: m.text,
+          client_id: clientId, direction: m.fromMe ? "outgoing" : "incoming", sender: m.michael ? "michael" : "erika", body: m.text,
           sent_at: new Date(m.at).toISOString(), session_date: utcToZonedInput(new Date(m.at).toISOString(), tz).slice(0, 10),
           history_only: true, analyzed: true,
         }));

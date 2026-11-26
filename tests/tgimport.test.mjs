@@ -36,3 +36,12 @@ test("bad files and last-N", () => {
   assert.equal(parseExport({ name: "G", type: "private_group", messages: [m(1, "a", "user1", 1, "x")] }).ok, false);
   const p = parseExport(full); assert.equal(lastN(p.chats[0], 2).length, 2);
 });
+
+import { signedByMichael } from "../src/lib/tgImport.ts";
+test("outgoing messages signed Michael are treated as his", () => {
+  assert.equal(signedByMichael("Lovely to hear.\n\nMichael"), true);
+  assert.equal(signedByMichael("Sending love,\nMichael x"), true);
+  assert.equal(signedByMichael("Michael would love to hear from you.\n\nSending love,\nErika x"), false);
+  const p = parseExport({ personal_information: { user_id: 1 }, chats: { list: [{ name: "A", type: "personal_chat", id: 1, messages: [m(1, "Me", "user1", 100, "Well done.\n\nMichael")] }] } });
+  assert.equal(p.chats[0].messages[0].michael, true);
+});

@@ -1,6 +1,6 @@
 // Reads a Telegram Desktop export (result.json, or a single chat's export). Pure functions, no imports.
 
-export type TgMsg = { at: number; fromMe: boolean; text: string };
+export type TgMsg = { at: number; fromMe: boolean; text: string; michael?: boolean };
 export type TgChat = { key: string; name: string; messages: TgMsg[] };
 export type TgParsed = { ok: true; chats: TgChat[]; meKnown: boolean } | { ok: false; error: string };
 
@@ -23,6 +23,13 @@ function bodyOf(m: Raw): string {
   return [text, tag].filter(Boolean).join(" ").trim();
 }
 
+/** Michael sometimes answers from Erika's account and signs the message with his name. */
+export function signedByMichael(text: string): boolean {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const last = lines[lines.length - 1] || "";
+  return /^michael\s*[x♥❤️🙏.!]*$/i.test(last);
+}
+
 function chatFrom(c: Raw, meId: string | null, idx: number): TgChat | null {
   const raw = Array.isArray(c.messages) ? (c.messages as Raw[]) : [];
   const out: TgMsg[] = [];
@@ -34,7 +41,8 @@ function chatFrom(c: Raw, meId: string | null, idx: number): TgChat | null {
     if (!body) continue;
     const at = m.date_unixtime ? Number(m.date_unixtime) * 1000 : Date.parse(String(m.date || ""));
     if (!Number.isFinite(at)) continue;
-    out.push({ at, fromMe: meId !== null && String(m.from_id) === meId, text: body });
+    const fromMe = meId !== null && String(m.from_id) === meId;
+    out.push({ at, fromMe, text: body, michael: fromMe && signedByMichael(body) });
   }
   if (out.length === 0) return null;
   out.sort((a, b) => a.at - b.at);
@@ -74,7 +82,7 @@ export function applySingleChatMe(raw: unknown, chat: TgChat): TgChat {
   const msgs = Array.isArray(r.messages) ? (r.messages as Raw[]) : [];
   const byTime = new Map<string, boolean>();
   for (const m of msgs) if (m.type === "message") byTime.set(`${m.date_unixtime}|${bodyOf(m)}`, String(m.from) !== clientName);
-  return { ...chat, messages: chat.messages.map((m) => ({ ...m, fromMe: byTime.get(`${Math.round(m.at / 1000)}|${m.text}`) ?? false })) };
+  return { ...chat, messages: chat.messages.map((m) => { const me = byTime.get(`${Math.round(m.at / 1000)}|${m.text}`) ?? false; return { ...m, fromMe: me, michael: me && signedByMichael(m.text) }; }) };
 }
 
 export function lastN(chat: TgChat, n: number | "all"): TgMsg[] {
