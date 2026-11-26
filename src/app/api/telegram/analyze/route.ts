@@ -128,6 +128,11 @@ export async function POST(req: Request) {
     draft = ins.data;
   }
 
+  // This message needs no reply (a closing thank-you, or Michael is handling it), so an older draft is out of date too.
+  if (!analysis.reply_needed && !summaryOnly) {
+    await supabase.from("reply_drafts").update({ status: "superseded" }).eq("client_id", clientId).in("status", ["draft", "copied"]);
+  }
+
   const newest = fresh[fresh.length - 1];
   await supabase.from("client_messages").update({ analyzed: true, analysis_error: null }).in("id", [...freshIds]);
   await supabase.from("client_messages").update({ analysis }).eq("id", newest.id);
