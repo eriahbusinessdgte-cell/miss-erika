@@ -10,6 +10,24 @@ import type { Task } from "@/lib/types";
 import { followupState } from "@/lib/ig";
 import { bucketOf, compareTasks, greetingFor, prettyDate, weekdayOf } from "@/lib/core";
 
+/** Current time in the chosen time zone, refreshed every 20 seconds. Empty on first paint to avoid a server/browser mismatch. */
+function Clock({ tz }: { tz: string }) {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const t = setInterval(() => setNow(new Date()), 20000);
+    return () => clearInterval(t);
+  }, []);
+  if (!now) return null;
+  let text = "";
+  try {
+    text = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(now);
+  } catch {
+    return null;
+  }
+  return <> · {text}</>;
+}
+
 function Soon({ title, icon, stage, text }: { title: string; icon: string; stage: string; text: string }) {
   return (
     <section className="card">
@@ -99,7 +117,7 @@ export default function Dashboard() {
           <p className="sub">Let's get your daily tasks done and keep your clients looked after.</p>
         </div>
         <div className="head-right">
-          <span className="date-pill"><Icon name="calendar" /> {prettyDate(today)}</span>
+          <span className="date-pill"><Icon name="calendar" /> {prettyDate(today)}<Clock tz={settings.timezone} /></span>
           <Link className="bell" href="/tasks" aria-label={overdue.length ? `${overdue.length} overdue tasks` : "Tasks"}>
             <Icon name="bell" />
             {overdue.length > 0 && <span className="dot" />}
