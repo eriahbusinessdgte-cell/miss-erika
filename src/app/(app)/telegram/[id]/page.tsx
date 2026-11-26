@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppData } from "@/components/AppData";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateTime, zonedToUtc, utcToZonedInput } from "@/lib/core";
@@ -60,6 +60,12 @@ export default function ClientChat() {
   useEffect(() => {
     if (aiState === "idle") load();
   }, [aiState, load]);
+
+  const threadRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = threadRef.current;
+    if (el) el.scrollTop = el.scrollHeight; // open at the newest message
+  }, [loaded, msgs.length, drafts.length]);
 
   const activeDraft = [...drafts].reverse().find((d) => d.status === "draft" || d.status === "copied");
   const lastOut = msgs.filter((m) => m.direction === "outgoing" && !m.history_only).reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
@@ -266,7 +272,7 @@ export default function ClientChat() {
 
       <div className="chatgrid">
         <section className="card">
-          <div className="thread" aria-label="Conversation">
+          <div className="thread" aria-label="Conversation" ref={threadRef}>
             {items.length === 0 && !activeDraft && <p className="empty">No messages yet. Paste the client&apos;s first message below.</p>}
             {items.map(({ m }) => (
               <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : m.sender === "michael" ? "out michael" : "out"}`}>

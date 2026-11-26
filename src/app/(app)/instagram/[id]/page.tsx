@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppData } from "@/components/AppData";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateTime, utcToZonedInput, zonedToUtc } from "@/lib/core";
@@ -72,6 +72,12 @@ export default function LeadPage() {
     await load();
     reloadLeads();
   };
+
+  const threadRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = threadRef.current;
+    if (el) el.scrollTop = el.scrollHeight; // open at the newest message
+  }, [loaded, msgs.length, drafts.length]);
 
   if (!loaded) return <p className="sub">Loading…</p>;
   if (!lead) return <div className="banner error">Lead not found. <Link href="/instagram">Back to leads</Link></div>;
@@ -236,7 +242,7 @@ export default function LeadPage() {
 
       <div className="chatgrid">
         <section className="card">
-          <div className="thread" aria-label="Conversation">
+          <div className="thread" aria-label="Conversation" ref={threadRef}>
             {items.length === 0 && !active && <p className="empty">No messages yet.</p>}
             {items.map((m) => (
               <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : m.sender === "michael" ? "out michael" : "out"}`}>
