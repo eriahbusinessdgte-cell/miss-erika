@@ -1,34 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { watchUntil, scanState } from "../src/lib/scan.ts";
+import { scanState, nextCheckAt } from "../src/lib/scan.ts";
 
-const day = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
-test("watch ends at the next 7:00 Manila time (23:00 UTC the day before)", () => {
-  assert.equal(watchUntil(new Date("2026-11-25T20:00:00Z")).toISOString(), "2026-11-25T23:00:00.000Z"); // 04:00 Manila -> 07:00 same day
-  assert.equal(watchUntil(new Date("2026-11-25T23:30:00Z")).toISOString(), "2026-11-26T23:00:00.000Z"); // 07:30 Manila -> next day
+test("nothing requested -> idle", () => {
+  assert.equal(scanState(null, null).kind, "idle");
+  assert.equal(scanState(null, new Date("2026-11-26T20:00:00Z")).kind, "idle");
 });
-test("no request and no scan today -> button needed", () => {
-  assert.equal(scanState(new Date("2026-11-25T20:00:00Z"), null, null, day).kind, "needed");
+test("requested and not finished -> pending", () => {
+  assert.equal(scanState(new Date("2026-11-26T20:00:00Z"), null).kind, "pending");
+  assert.equal(scanState(new Date("2026-11-26T20:00:00Z"), new Date("2026-11-26T14:00:00Z")).kind, "pending");
 });
-test("started but first scan not finished -> waiting", () => {
-  const s = scanState(new Date("2026-11-25T20:10:00Z"), new Date("2026-11-25T20:00:00Z"), null, day);
-  assert.equal(s.kind, "waiting");
+test("scan finished after the request -> idle, no repeat", () => {
+  assert.equal(scanState(new Date("2026-11-26T20:00:00Z"), new Date("2026-11-26T20:35:00Z")).kind, "idle");
 });
-test("scanned after start, before 7am Manila -> running", () => {
-  const s = scanState(new Date("2026-11-25T21:30:00Z"), new Date("2026-11-25T20:00:00Z"), new Date("2026-11-25T20:20:00Z"), day);
-  assert.equal(s.kind, "running");
-});
-test("after the watch ends, scanned today -> done; scanned yesterday -> needed", () => {
-  assert.equal(scanState(new Date("2026-11-26T01:00:00Z"), new Date("2026-11-25T20:00:00Z"), new Date("2026-11-25T22:20:00Z"), day).kind, "done");
-  assert.equal(scanState(new Date("2026-11-27T01:00:00Z"), new Date("2026-11-25T20:00:00Z"), new Date("2026-11-25T22:20:00Z"), day).kind, "needed");
-});
-
-import { nextScanAt } from "../src/lib/scan.ts";
-test("the next scan starts at the first :29 check at least 2h50 after the last one", () => {
-  // finished 06:59 PST = 14:59 UTC -> due 17:49 UTC -> next check 18:29 UTC = 10:29 PST
-  assert.equal(nextScanAt(new Date("2026-11-26T14:59:00Z")).toISOString(), "2026-11-26T18:29:00.000Z");
-  // finished exactly so that due lands on :29
-  assert.equal(nextScanAt(new Date("2026-11-26T14:39:00Z")).toISOString(), "2026-11-26T17:29:00.000Z");
-  // finished at :20 -> due :10 -> next :29
-  assert.equal(nextScanAt(new Date("2026-11-26T14:20:00Z")).toISOString(), "2026-11-26T17:29:00.000Z");
+test("next check is the next :29", () => {
+  assert.equal(nextCheckAt(new Date("2026-11-26T20:10:00Z")).toISOString(), "2026-11-26T20:29:00.000Z");
+  assert.equal(nextCheckAt(new Date("2026-11-26T20:29:00Z")).toISOString(), "2026-11-26T21:29:00.000Z");
+  assert.equal(nextCheckAt(new Date("2026-11-26T20:45:00Z")).toISOString(), "2026-11-26T21:29:00.000Z");
 });

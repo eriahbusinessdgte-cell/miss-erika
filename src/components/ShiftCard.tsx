@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useAppData } from "@/components/AppData";
 import { Icon } from "@/components/Icon";
 import { madridDay } from "@/lib/shift";
-import { scanState } from "@/lib/scan";
 import { prettyDate, formatDateTime } from "@/lib/core";
 
 /** Shown instead of the day's tasks until Erika presses Start working. */
@@ -18,9 +17,6 @@ export function StartWorkCard() {
     setBusy(true);
     const now = new Date();
     const patch: Record<string, string | null> = { shift_started_at: now.toISOString(), shift_ended_at: null, shift_date: madridDay(now) };
-    // Starting work also starts the Telegram scan, unless one is already running or finished for this day.
-    const st = scanState(now, settings.scan_requested_at ? new Date(settings.scan_requested_at) : null, settings.scan_last_at ? new Date(settings.scan_last_at) : null, madridDay);
-    if (st.kind === "needed") patch.scan_requested_at = now.toISOString();
     await saveSettings(patch);
     setBusy(false);
   }
@@ -31,7 +27,7 @@ export function StartWorkCard() {
       <div>
         <h2>Ready when you are</h2>
         <p className="sub">
-          Press Start working to open <strong>{prettyDate(today)}</strong> (Michael's day). Your tasks for the day appear and the Telegram scan starts.
+          Press Start working to open <strong>{prettyDate(today)}</strong> (Michael's day). Your tasks for the day appear. Scan Telegram from the dashboard when you need it.
         </p>
         {last && <p className="sub" style={{ marginTop: 6 }}>{last}</p>}
       </div>
