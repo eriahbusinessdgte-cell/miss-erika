@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { zonedToUtc, utcToZonedInput } from "../src/lib/core.ts";
-import { extractScores, detectCrisis, checkErikaReply, fallbackReply, parseAnalysis, extractJson } from "../src/lib/erika.ts";
+import { inventedDetails, extractScores, detectCrisis, checkErikaReply, fallbackReply, parseAnalysis, extractJson } from "../src/lib/erika.ts";
 
 test("pasted time is read in the chosen time zone, not the browser's", () => {
   assert.equal(zonedToUtc("2026-11-24T08:30", "Asia/Manila").toISOString(), "2026-11-24T00:30:00.000Z");
@@ -87,4 +87,10 @@ test("reply_needed false needs no reply text; default is true", () => {
   const b = parseAnalysis({ summary: "s", tags: ["CLIENT UPDATE"], urgency: "NOT URGENT", needs_michael: false, reply: "Hi Anna, thanks." }, "hello");
   assert.equal(b.reply_needed, true);
   assert.equal(parseAnalysis({ summary: "s", reply_needed: true, reply: "" }, ""), null);
+});
+
+test("a time in the draft must appear in the conversation", () => {
+  assert.deepEqual(inventedDetails("The group call is at 7 pm on Thursday.", "what time is the call?"), ["invented a time (7 pm)"]);
+  assert.deepEqual(inventedDetails("See you at 7pm like Michael said", "Call is at 7 PM"), []);
+  assert.deepEqual(inventedDetails("I'll check with Michael and come back.", ""), []);
 });

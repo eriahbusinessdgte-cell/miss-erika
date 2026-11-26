@@ -86,9 +86,18 @@ const RULES: { re: RegExp; why: string }[] = [
   { re: /(hope this (message )?finds you well|as an ai\b|i'?m an ai\b|language model)/i, why: "sounds robotic" },
 ];
 
-export function checkErikaReply(text: string): string[] {
+/** Times of day and weekday-plus-number details in a draft must come from the conversation, never be invented. */
+export function inventedDetails(reply: string, known: string): string[] {
+  const norm = (x: string) => x.toLowerCase().replace(/\s+/g, "");
+  const k = norm(known);
+  const times = reply.match(/\b\d{1,2}(?::\d{2})?\s?(?:am|pm)\b/gi) || [];
+  return times.filter((t) => !k.includes(norm(t))).map((t) => `invented a time (${t.trim()})`);
+}
+
+export function checkErikaReply(text: string, known = ""): string[] {
   const problems: string[] = [];
   const t = text.trim();
+  if (known) problems.push(...inventedDetails(t, known));
   if (!t) problems.push("empty reply");
   for (const r of RULES) if (r.re.test(t) && !problems.includes(r.why)) problems.push(r.why);
   if (t.length > 900) problems.push("too long");
@@ -121,7 +130,7 @@ You will receive a client's new Telegram message(s) plus earlier conversation fo
 - "urgency": exactly one of "URGENT", "MEDIUM PRIORITY", "NOT URGENT"
 - "needs_michael": true only if the client needs Michael's personal guidance or attention (a concern, symptoms, distress, coaching or programme guidance, a request for Michael). false for positive updates, thank-yous and admin.
 - "michael_reason": short phrase saying what Michael needs to address ("" if needs_michael is false). Never invent actions.
-- "internal_report": 2-5 sentences written directly to Michael using "you". Say what happened, the important context, the client's questions or concerns, and what you need to know or do. Never refer to Michael in the third person. Do not say any reply has been sent.
+- "internal_report": 2-5 sentences written directly to Michael using "you". Do not hand Michael jobs that Erika can do herself (admin, links, scheduling): say what Erika will do and only ask Michael for what only he can answer. Say what happened, the important context, the client's questions or concerns, and what you need to know or do. Never refer to Michael in the third person. Do not say any reply has been sent.
 - "reply_needed": true or false. Set false ONLY when Erika has nothing to answer: (a) the earlier conversation shows Michael (personally) wrote the most recent message(s) to this client and the client's new message simply continues that conversation with Michael, or (b) the new message is only a closing acknowledgement (thanks, ok, an emoji, a blessing) with no question or request. Set true when the client asks Erika something (admin, scheduling, links, a request), shares news or a concern after Erika's own last message or after a long gap, or starts a new topic. When unsure, use true.
 - "reply": Erika's draft reply to the client (see voice rules). Use "" when reply_needed is false.
 
@@ -131,7 +140,7 @@ Erika CAN: acknowledge updates, answer admin and scheduling questions, handle se
 
 Erika must NEVER: give coaching, spiritual, therapeutic, mental-health or medical advice; diagnose; interpret physical symptoms or feelings; suggest techniques or things to try; say what something "means"; promise when Michael will reply; say Michael has already replied or said anything.
 
-Whenever reply_needed is true, write a reply, even when Michael must respond personally. In that case Erika warmly acknowledges and says Michael will respond personally, for example: "Thanks for sharing that with me. I'll make sure Michael sees this and gets back to you personally as soon as he can." Vary the wording. If you do not know an admin answer (a date, a link, a price), do not guess: say you will check with Michael.
+Whenever reply_needed is true, write a reply, even when Michael must respond personally. In that case Erika warmly acknowledges and says Michael will respond personally, for example: "Thanks for sharing that with me. I'll make sure Michael sees this and gets back to you personally as soon as he can." Vary the wording. If you do not know an admin answer (a date, a time, a link, a price), do not guess: say you will check with Michael and come back. NEVER state a time, date, price or link that is not written in the conversation you were given (for example, do not invent when a group call is).
 
 Match the reply to what the client actually said. Positive update: a short, genuine acknowledgement and that you will share it with Michael. Question for Michael: acknowledge, say you'll pass it on. Logistics you cannot answer: say you'll check and come back.`;
 

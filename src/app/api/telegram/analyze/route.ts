@@ -61,6 +61,7 @@ export async function POST(req: Request) {
   const context = msgs.filter((m) => !freshIds.has(m.id)).slice(-12).map(toPrompt);
   const freshPrompt = fresh.map(toPrompt);
   const freshText = fresh.map((m) => m.body).join("\n");
+  const knownText = msgs.map((m) => m.body).join("\n");
 
   const fail = async (error: string) => {
     await supabase.from("client_messages").update({ analysis_error: error }).in("id", [...freshIds]);
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
       continue;
     }
     analysis = parsed;
-    problems = parsed.reply_needed ? [...checkErikaReply(parsed.reply), ...checkUrls(parsed.reply, allowedUrls)] : [];
+    problems = parsed.reply_needed ? [...checkErikaReply(parsed.reply, knownText), ...checkUrls(parsed.reply, allowedUrls)] : [];
     if (problems.length === 0) break;
     retryNote = problems.join(", ");
   }
