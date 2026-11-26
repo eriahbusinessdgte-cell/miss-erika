@@ -68,6 +68,19 @@ export default function ClientChat() {
     if (el) el.scrollTop = el.scrollHeight; // open at the newest message
   }, [loaded, msgs.length, drafts.length]);
 
+  // A client message brought in by the morning scan has no reply yet: write one when the chat is opened (once, recent messages only).
+  const autoDrafted = useRef(false);
+  useEffect(() => {
+    if (!loaded || autoDrafted.current || aiState !== "idle") return;
+    const last = [...msgs].sort((a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()).pop();
+    if (!last || last.direction !== "incoming" || last.analysis || last.analysis_error) return;
+    if (Date.now() - new Date(last.sent_at).getTime() > 3 * 86400000) return;
+    if (drafts.some((d) => d.source_message_ids?.includes(last.id))) return;
+    if (/^\[(voice message|photo|file|sticker)\]$/i.test(last.body.trim())) return; // no words to answer yet
+    autoDrafted.current = true;
+    void enqueueAnalysis(id, undefined, last.id);
+  }, [loaded, msgs, drafts, aiState, id]);
+
   const activeDraft = [...drafts].reverse().find((d) => d.status === "draft" || d.status === "copied");
   const lastOut = msgs.filter((m) => m.direction === "outgoing" && !m.history_only).reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
   const unreplied = msgs.filter((m) => m.direction === "incoming" && !m.history_only && new Date(m.created_at).getTime() > lastOut);
