@@ -123,11 +123,12 @@ export default function SettingsPage() {
         </div>
         <div className="field">
           <label htmlFor="s-tz">Time zone</label>
-          <input id="s-tz" type="text" value={d.timezone} onChange={(e) => setD({ ...d, timezone: e.target.value })} list="tz-list" />
-          <datalist id="tz-list">
-            <option value="Asia/Manila" /><option value="Europe/London" /><option value="America/New_York" />
-            <option value="America/Los_Angeles" /><option value="Asia/Singapore" /><option value="Australia/Sydney" />
-          </datalist>
+          <select id="s-tz" value={d.timezone} onChange={(e) => setD({ ...d, timezone: e.target.value })}>
+            <option value="Asia/Manila">Manila (Philippines)</option>
+            <option value="America/Los_Angeles">California (US Pacific time)</option>
+            <option value="Europe/Madrid">Spain</option>
+            {!["Asia/Manila", "America/Los_Angeles", "Europe/Madrid"].includes(d.timezone) && <option value={d.timezone}>{d.timezone} (current)</option>}
+          </select>
           <span className="hint">
             {isValidTimezone(d.timezone) ? `Today is ${todayInTz(d.timezone)} in this time zone.` : "Not a valid time zone yet."}
           </span>
