@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 const MAX = 4 * 1024 * 1024;
 
@@ -59,8 +60,8 @@ export function VoiceNote({ label = "Add voice message", onText }: { label?: str
   return (
     <>
       <button type="button" className="btn" onClick={() => { setErr(null); setOpen(true); }}>{label}</button>
-      {open && (
-        <div className="modal-back" role="dialog" aria-modal="true" aria-label="Add voice message">
+      {open && createPortal(
+        <div className="modal-back" style={{ zIndex: 1000 }} role="dialog" aria-modal="true" aria-label="Add voice message">
           <div className="modal">
             <h2>Add voice message</h2>
             <p className="sub">Choose the voice note file, drop it here, or copy the file and press Cmd+V (Ctrl+V on Windows). It turns into text and the audio is not saved.</p>
@@ -78,7 +79,8 @@ export function VoiceNote({ label = "Add voice message", onText }: { label?: str
               <button type="button" className="btn" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
