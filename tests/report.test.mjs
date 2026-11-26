@@ -71,3 +71,12 @@ test("unread mode: nothing unread", () => {
   const x = buildReport({ prettyDate: "d", periodStart: 0, periodEnd: 1, clients, messages: msgs, unreadIds: [] });
   assert.match(x.body, /No unread client chats for this update\./);
 });
+
+test("a chat that needs no reply is not counted as pending", async () => {
+  const { buildReport } = await import("../src/lib/report.ts");
+  const mk = (id, noReply) => ({ client_id: id, direction: "incoming", created_at: 1, sent_at: 1, analysis: { summary: "s", tags: ["CLIENT UPDATE"], urgency: "NOT URGENT", internal_report: "They said thanks.", needs_michael: false, michael_reason: "", reply_needed: noReply ? false : true } });
+  const r = buildReport({ prettyDate: "Wed", periodStart: 0, periodEnd: 9, clients: [{ id: "a", name: "Anita G", needs_michael: false, michael_reason: "" }, { id: "b", name: "Bo K", needs_michael: false, michael_reason: "" }], messages: [mk("a", false), mk("b", true)], unreadIds: ["a", "b"] });
+  assert.equal(r.counts.pending, 1);
+  assert.match(r.body, /didn't need a reply from me/);
+  assert.match(r.body, /No reply needed from me/);
+});

@@ -83,7 +83,7 @@ export async function POST(req: Request) {
       continue;
     }
     analysis = parsed;
-    problems = [...checkErikaReply(parsed.reply), ...checkUrls(parsed.reply, allowedUrls)];
+    problems = parsed.reply_needed ? [...checkErikaReply(parsed.reply), ...checkUrls(parsed.reply, allowedUrls)] : [];
     if (problems.length === 0) break;
     retryNote = problems.join(", ");
   }
@@ -95,21 +95,25 @@ export async function POST(req: Request) {
 
   // Save: older unsent drafts are kept but marked superseded; the new draft stays a draft until marked sent.
   const now = new Date().toISOString();
-  await supabase.from("reply_drafts").update({ status: "superseded" }).eq("client_id", clientId).in("status", ["draft", "copied"]);
-  const { data: draft, error: dErr } = await supabase
-    .from("reply_drafts")
-    .insert({
-      client_id: clientId,
-      kind: "reply",
-      body: analysis.reply,
-      original_body: analysis.reply,
-      status: "draft",
-      ai_flags: analysis.flags,
-      source_message_ids: [...freshIds],
-    })
-    .select("id")
-    .single();
-  if (dErr) return fail(`Couldn't save the draft: ${dErr.message}`);
+  let draft: { id: string } | null = null;
+  if (analysis.reply_needed) {
+    await supabase.from("reply_drafts").update({ status: "superseded" }).eq("client_id", clientId).in("status", ["draft", "copied"]);
+    const ins = await supabase
+      .from("reply_drafts")
+      .insert({
+        client_id: clientId,
+        kind: "reply",
+        body: analysis.reply,
+        original_body: analysis.reply,
+        status: "draft",
+        ai_flags: analysis.flags,
+        source_message_ids: [...freshIds],
+      })
+      .select("id")
+      .single();
+    if (ins.error) return fail(`Couldn't save the draft: ${ins.error.message}`);
+    draft = ins.data;
+  }
 
   const newest = fresh[fresh.length - 1];
   await supabase.from("client_messages").update({ analyzed: true, analysis_error: null }).in("id", [...freshIds]);
@@ -119,7 +123,7 @@ export async function POST(req: Request) {
     summary: analysis.summary,
     tags: analysis.tags,
     urgency: analysis.urgency,
-    needs_reply: true,
+    needs_reply: analysis.reply_needed,
   };
   if (analysis.needs_michael) {
     patch.needs_michael = true;
@@ -131,5 +135,5 @@ export async function POST(req: Request) {
   }
   await supabase.from("clients").update(patch).eq("id", clientId);
 
-  return NextResponse.json({ ok: true, draftId: draft?.id, usedTemplate: problems.length > 0 });
+  return NextResponse.json({ ok: true, draftId: draft?.id, noReplyNeeded: !analysis.reply_needed, usedTemplate: problems.length > 0 });
 }

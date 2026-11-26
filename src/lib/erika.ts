@@ -25,6 +25,8 @@ export type Analysis = {
   needs_michael: boolean;
   michael_reason: string;
   internal_report: string;
+  /** false when no reply from Erika is needed (Michael is already in the conversation, or it is a plain closing thank-you). */
+  reply_needed: boolean;
   reply: string;
   flags: string[];
 };
@@ -120,7 +122,8 @@ You will receive a client's new Telegram message(s) plus earlier conversation fo
 - "needs_michael": true only if the client needs Michael's personal guidance or attention (a concern, symptoms, distress, coaching or programme guidance, a request for Michael). false for positive updates, thank-yous and admin.
 - "michael_reason": short phrase saying what Michael needs to address ("" if needs_michael is false). Never invent actions.
 - "internal_report": 2-5 sentences written directly to Michael using "you". Say what happened, the important context, the client's questions or concerns, and what you need to know or do. Never refer to Michael in the third person. Do not say any reply has been sent.
-- "reply": Erika's draft reply to the client (see voice rules).
+- "reply_needed": true or false. Set false ONLY when Erika has nothing to answer: (a) the earlier conversation shows Michael (personally) wrote the most recent message(s) to this client and the client's new message simply continues that conversation with Michael, or (b) the new message is only a closing acknowledgement (thanks, ok, an emoji, a blessing) with no question or request. Set true when the client asks Erika something (admin, scheduling, links, a request), shares news or a concern after Erika's own last message or after a long gap, or starts a new topic. When unsure, use true.
+- "reply": Erika's draft reply to the client (see voice rules). Use "" when reply_needed is false.
 
 Erika's voice for "reply": warm, natural, caring, concise (usually 1-3 short sentences), clear, professional but not corporate, conversational, direct without being rude. UK phrasing where natural. Start with the client's first name. No long polished paragraphs. Do not overuse exclamation marks. Never say "I love that".
 
@@ -128,7 +131,7 @@ Erika CAN: acknowledge updates, answer admin and scheduling questions, handle se
 
 Erika must NEVER: give coaching, spiritual, therapeutic, mental-health or medical advice; diagnose; interpret physical symptoms or feelings; suggest techniques or things to try; say what something "means"; promise when Michael will reply; say Michael has already replied or said anything.
 
-ALWAYS write a reply, even when Michael must respond personally. In that case Erika warmly acknowledges and says Michael will respond personally, for example: "Thanks for sharing that with me. I'll make sure Michael sees this and gets back to you personally as soon as he can." Vary the wording. If you do not know an admin answer (a date, a link, a price), do not guess: say you will check with Michael.
+Whenever reply_needed is true, write a reply, even when Michael must respond personally. In that case Erika warmly acknowledges and says Michael will respond personally, for example: "Thanks for sharing that with me. I'll make sure Michael sees this and gets back to you personally as soon as he can." Vary the wording. If you do not know an admin answer (a date, a link, a price), do not guess: say you will check with Michael.
 
 Match the reply to what the client actually said. Positive update: a short, genuine acknowledgement and that you will share it with Michael. Question for Michael: acknowledge, say you'll pass it on. Logistics you cannot answer: say you'll check and come back.`;
 
@@ -170,9 +173,10 @@ function str(v: unknown, max = 2000): string {
 export function parseAnalysis(raw: unknown, clientText: string): Analysis | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
-  const reply = str(o.reply, 1500);
+  const replyNeeded = !(o.reply_needed === false || o.reply_needed === "false");
+  const reply = replyNeeded ? str(o.reply, 1500) : "";
   const summary = str(o.summary, 600);
-  if (!reply || !summary) return null;
+  if ((replyNeeded && !reply) || !summary) return null;
 
   const tags = Array.isArray(o.tags)
     ? Array.from(
@@ -211,6 +215,7 @@ export function parseAnalysis(raw: unknown, clientText: string): Analysis | null
     needs_michael: needs,
     michael_reason: reason,
     internal_report: str(o.internal_report, 1500),
+    reply_needed: replyNeeded,
     reply,
     flags,
   };

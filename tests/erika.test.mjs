@@ -79,3 +79,12 @@ test("links in Erika drafts must be saved Resources", () => {
   assert.deepEqual(checkUrls("Here you go https://example.com/a.", ["https://example.com/a"]), []);
   assert.equal(checkUrls("See https://made-up.com/x", ["https://example.com/a"]).length, 1);
 });
+
+test("reply_needed false needs no reply text; default is true", () => {
+  const a = parseAnalysis({ summary: "Client thanks Michael.", tags: ["CLIENT UPDATE"], urgency: "NOT URGENT", needs_michael: false, reply_needed: false, reply: "" }, "thank you");
+  assert.equal(a.reply_needed, false);
+  assert.equal(a.reply, "");
+  const b = parseAnalysis({ summary: "s", tags: ["CLIENT UPDATE"], urgency: "NOT URGENT", needs_michael: false, reply: "Hi Anna, thanks." }, "hello");
+  assert.equal(b.reply_needed, true);
+  assert.equal(parseAnalysis({ summary: "s", reply_needed: true, reply: "" }, ""), null);
+});

@@ -9,6 +9,7 @@ export type RAnalysis = {
   internal_report: string;
   needs_michael: boolean;
   michael_reason: string;
+  reply_needed?: boolean;
 };
 export type RMessage = {
   client_id: string;
@@ -36,6 +37,7 @@ export function buildReport(args: {
   const entries: { name: string; rank: number; text: string; michael?: string }[] = [];
   let sent = 0;
   let pending = 0;
+  let handled = 0;
   let unanalysed = 0;
 
   const byUnread = !!args.unreadIds;
@@ -51,11 +53,13 @@ export function buildReport(args: {
     const at = (m: RMessage) => (byUnread ? m.sent_at : m.created_at);
     const newest = Math.max(...fresh.map(at));
     const replied = mine.some((m) => m.direction === "outgoing" && at(m) > newest);
-    if (replied) sent++;
-    else pending++;
-
     const withAnalysis = [...fresh].filter((m) => m.analysis).sort((a, b) => at(b) - at(a))[0];
     const a = withAnalysis?.analysis || null;
+    // No reply from Erika is needed when Michael is already in the conversation or it is a plain closing thank-you.
+    const noReply = a?.reply_needed === false && !replied;
+    if (replied) sent++;
+    else if (noReply) handled++;
+    else pending++;
     const name = c.name.toUpperCase();
     let text: string;
     if (a) {
@@ -65,7 +69,8 @@ export function buildReport(args: {
       unanalysed++;
       text = `${name} – NOT ANALYSED YET\nThey sent a message that I haven't been able to summarise yet. I'll check it directly.`;
     }
-    if (!replied) text += `\n(I haven't sent a reply to ${c.name.split(/\s+/)[0]} yet.)`;
+    if (noReply) text += `\n(No reply needed from me: this continues your conversation with ${c.name.split(/\s+/)[0]}, or it was just a thank-you.)`;
+    else if (!replied) text += `\n(I haven't sent a reply to ${c.name.split(/\s+/)[0]} yet.)`;
     const needs = a ? a.needs_michael || c.needs_michael : c.needs_michael;
     entries.push({
       name: c.name,
@@ -84,7 +89,10 @@ export function buildReport(args: {
     lines.push(byUnread ? "No unread client chats for this update." : "No client messages came in for this period.");
   } else {
     lines.push(`${n} client${n === 1 ? "" : "s"} sent messages.`);
-    if (pending === 0) lines.push(n === 1 ? "I've replied to them." : "I've replied to all of them.");
+    if (handled > 0) {
+      const bits = [`${sent} replied`, `${pending} still pending`, `${handled} didn't need a reply from me`];
+      lines.push(`Replies: ${bits.join(", ")}.`);
+    } else if (pending === 0) lines.push(n === 1 ? "I've replied to them." : "I've replied to all of them.");
     else if (sent === 0) lines.push(n === 1 ? "I haven't replied yet." : "I haven't replied to any of them yet.");
     else lines.push(`I've replied to ${sent} of them. ${pending} ${pending === 1 ? "reply is" : "replies are"} still pending.`);
   }
