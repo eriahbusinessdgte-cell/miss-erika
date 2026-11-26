@@ -7,6 +7,10 @@ export type Settings = {
   timezone: string;
   quiet_inactive_days: number;
   quiet_flag_weekday: number;
+  full_name?: string | null;
+  role_title?: string | null;
+  birthday?: string | null;
+  avatar_url?: string | null;
 };
 
 export type Task = {

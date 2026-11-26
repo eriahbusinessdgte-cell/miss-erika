@@ -32,7 +32,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="shell">
       <aside className="rail">
         <div className="brand">
-          <div className="logo" aria-hidden="true">M</div>
+          <img className="logo" src="/icon.svg" alt="" width={40} height={40} />
           <div>
             <div className="brand-name">Miss Erika</div>
             <div className="brand-sub">Your work assistant</div>
@@ -61,14 +61,17 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="me">
           {menu && (
             <div className="me-menu">
+              <Link href="/settings" onClick={() => setMenu(false)}><Icon name="settings" /> Profile &amp; settings</Link>
               <button onClick={signOut}><Icon name="logout" /> Sign out</button>
             </div>
           )}
           <button className="me-btn" onClick={() => setMenu((m) => !m)} aria-expanded={menu}>
-            <span className="avatar">{name.slice(0, 1).toUpperCase()}</span>
+            <span className="avatar">
+              {settings?.avatar_url ? <img src={settings.avatar_url} alt="" /> : name.slice(0, 1).toUpperCase()}
+            </span>
             <span style={{ flex: 1 }}>
               <div className="me-name">{name}</div>
-              <div className="me-role">Assistant</div>
+              <div className="me-role">{settings?.role_title || "Assistant"}</div>
             </span>
             <Icon name="chevron" size={16} />
           </button>
