@@ -14,7 +14,6 @@ const NAV = [
   { href: "/tasks", label: "Tasks", icon: "tasks", stage: null },
   { href: "/kpis", label: "KPIs & Weekly Reports", icon: "kpi", stage: "Stage 5" },
   { href: "/resources", label: "Resources & Booking Links", icon: "link", stage: null },
-  { href: "/settings", label: "Settings", icon: "settings", stage: null },
 ];
 
 function Shell({ children }: { children: React.ReactNode }) {
