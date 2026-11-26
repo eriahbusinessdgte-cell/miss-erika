@@ -29,7 +29,7 @@ export default function InstagramLeads() {
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [f, setF] = useState({ name: "", handle: "", source: "comment" as Source, may_know_michael: false, michael_sent_link: false, notes: "", engaged: "" });
+  const [f, setF] = useState({ kind: "new" as "new" | "existing", stage: "Fact Find", name: "", handle: "", source: "comment" as Source, may_know_michael: false, michael_sent_link: false, notes: "", engaged: "" });
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("new") === "1") {
@@ -66,6 +66,7 @@ export default function InstagramLeads() {
         name: f.name.trim(),
         handle: f.handle.trim().replace(/^@/, ""),
         source: f.source,
+        ...(f.kind === "existing" ? { stage: f.stage } : {}),
         notes: f.notes,
         engaged_at: f.engaged ? zonedToUtc(f.engaged, tz)?.toISOString() ?? null : null,
         may_know_michael: f.may_know_michael,
@@ -80,8 +81,9 @@ export default function InstagramLeads() {
       setErr(error?.message || "Couldn't add the lead.");
       return;
     }
-    // The opener is fixed by the Bible, so it is written here, not by the AI. Held back if Michael needs to check first.
-    if (!flagged) {
+    // The opener is fixed by the Bible, so it is written here, not by the AI. Held back if Michael needs to check first,
+    // and never written for someone who is already chatting with Michael.
+    if (!flagged && f.kind === "new") {
       await supabase.from("ig_drafts").insert({ lead_id: data.id, kind: "opener", body: openerFor(f.source, f.name), status: "draft" });
     }
     await reloadLeads();
@@ -166,6 +168,19 @@ export default function InstagramLeads() {
           <form className="modal" onSubmit={addLead}>
             <h2>Add lead</h2>
             {err && <div className="banner error" role="alert">{err}</div>}
+            <div className="field">
+              <label>Is this lead new or already chatting?</label>
+              <label className="checkrow"><input type="radio" name="a-kind" checked={f.kind === "new"} onChange={() => setF({ ...f, kind: "new" })} /> Brand new. Write the opening message.</label>
+              <label className="checkrow"><input type="radio" name="a-kind" checked={f.kind === "existing"} onChange={() => setF({ ...f, kind: "existing" })} /> Already chatting. Don&apos;t write an opener. I&apos;ll add the old messages.</label>
+            </div>
+            {f.kind === "existing" && (
+              <div className="field">
+                <label htmlFor="a-stage">Where is the conversation now?</label>
+                <select id="a-stage" value={f.stage} onChange={(e) => setF({ ...f, stage: e.target.value })}>
+                  {ALL_STAGES.map((st) => <option key={st}>{st}</option>)}
+                </select>
+              </div>
+            )}
             <div className="two">
               <div className="field"><label htmlFor="a-name">Name</label><input id="a-name" type="text" required autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></div>
               <div className="field"><label htmlFor="a-handle">Instagram handle</label><input id="a-handle" type="text" value={f.handle} onChange={(e) => setF({ ...f, handle: e.target.value })} placeholder="@handle" /></div>

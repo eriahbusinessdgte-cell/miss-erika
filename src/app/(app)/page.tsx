@@ -9,6 +9,7 @@ import { TaskForm, TaskRow } from "@/components/TaskParts";
 import { HotSeatCard } from "@/components/HotSeatCard";
 import { ScanCard } from "@/components/ScanCard";
 import { StartWorkCard, FinishWorkButton } from "@/components/ShiftCard";
+import { RespondCard } from "@/components/RespondCard";
 import { madridDay } from "@/lib/shift";
 import type { Task } from "@/lib/types";
 import { followupState } from "@/lib/ig";
@@ -139,6 +140,11 @@ export default function Dashboard() {
         <div className="tile red"><span className="ico"><Icon name="alert" size={22} /></span><div><div className="num">{overdue.length}</div><div className="cap">Overdue</div></div></div>
         <div className="tile green"><span className="ico"><Icon name="check" size={22} /></span><div><div className="num">{doneTodayTasks.length}</div><div className="cap">Completed today</div></div></div>
         <div className="tile blue"><span className="ico"><Icon name="tasks" size={22} /></span><div><div className="num">{upcoming}</div><div className="cap">Upcoming</div></div></div>
+      </div>
+
+      <div className="cols">
+        <RespondCard kind="telegram" />
+        <RespondCard kind="instagram" />
       </div>
 
       <div className="cols">

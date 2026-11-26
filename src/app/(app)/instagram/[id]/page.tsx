@@ -253,7 +253,7 @@ export default function LeadPage() {
       <div className="chatgrid">
         <section className="card">
           <div className="thread" aria-label="Conversation" ref={threadRef}>
-            {items.length === 0 && !active && <p className="empty">No messages yet.</p>}
+            {items.length === 0 && !active && <p className="empty">No messages yet. If this person is already chatting, paste the old messages below, oldest first, and tick “Save to history only”. Paste their latest message without the tick to get a reply draft.</p>}
             {items.map((m) => (
               <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : m.sender === "michael" ? "out michael" : "out"}`}>
                 {m.sender === "michael" && <span className="who">Michael replied personally</span>}
