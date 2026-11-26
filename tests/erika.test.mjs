@@ -94,3 +94,10 @@ test("a time in the draft must appear in the conversation", () => {
   assert.deepEqual(inventedDetails("See you at 7pm like Michael said", "Call is at 7 PM"), []);
   assert.deepEqual(inventedDetails("I'll check with Michael and come back.", ""), []);
 });
+
+import { badInternalReport } from "../src/lib/erika.ts";
+test("report notes must brief Michael about the client", () => {
+  assert.equal(badInternalReport("You need to let Michael know Deborah is wondering about sleep."), true);
+  assert.equal(badInternalReport("Please pass this on so he can reply."), true);
+  assert.equal(badInternalReport("Deborah is wondering whether drifting in and out of sleep during meditation is okay. She would like your guidance."), false);
+});

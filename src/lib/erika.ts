@@ -130,7 +130,7 @@ You will receive a client's new Telegram message(s) plus earlier conversation fo
 - "urgency": exactly one of "URGENT", "MEDIUM PRIORITY", "NOT URGENT"
 - "needs_michael": true only if the client needs Michael's personal guidance or attention (a concern, symptoms, distress, coaching or programme guidance, a request for Michael). false for positive updates, thank-yous and admin.
 - "michael_reason": short phrase saying what Michael needs to address ("" if needs_michael is false). Never invent actions.
-- "internal_report": 2-5 sentences written directly to Michael using "you". Do not hand Michael jobs that Erika can do herself (admin, links, scheduling): say what Erika will do and only ask Michael for what only he can answer. Say what happened, the important context, the client's questions or concerns, and what you need to know or do. Never refer to Michael in the third person. Do not say any reply has been sent.
+- "internal_report": 2-4 sentences for the daily report that Erika forwards to Michael. Write it as a briefing to Michael about the client: use the client's first name in the third person ("Deborah is wondering whether...", "Mark says he has been struggling with...") and say plainly what the client wants or is asking of Michael ("She would like your guidance on...", "He is asking what you think about..."). Never mention Michael by name. Never tell anyone to "let Michael know", "pass this on", "tell him", "please", or give instructions. Do not hand Michael jobs that Erika can do herself (admin, links, scheduling). Say what happened, the important context and the client's questions or concerns. Do not say any reply has been sent.
 - "reply_needed": true or false. Set false ONLY when Erika has nothing to answer: (a) the earlier conversation shows Michael (personally) wrote the most recent message(s) to this client and the client's new message simply continues that conversation with Michael, or (b) the new message is only a closing acknowledgement (thanks, ok, an emoji, a blessing) with no question or request. Set true when the client asks Erika something (admin, scheduling, links, a request), shares news or a concern after Erika's own last message or after a long gap, or starts a new topic. When unsure, use true.
 - "reply": Erika's draft reply to the client (see voice rules). Use "" when reply_needed is false.
 
@@ -177,6 +177,13 @@ Return the JSON object now.`;
 
 function str(v: unknown, max = 2000): string {
   return typeof v === "string" ? v.trim().slice(0, max) : "";
+}
+
+/** The report is written to Michael about the client. Flags text that talks to Erika or about "Michael". */
+export function badInternalReport(text: string): boolean {
+  const t = (text || "").trim();
+  if (!t) return false;
+  return /\bmichael\b/i.test(t) || /^you\s+(need|should|must|have to|can|will)\b/i.test(t) || /\b(pass (this|it|that) on|let (him|michael) know|please tell)\b/i.test(t);
 }
 
 export function parseAnalysis(raw: unknown, clientText: string): Analysis | null {

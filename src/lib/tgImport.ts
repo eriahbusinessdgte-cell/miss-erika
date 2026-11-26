@@ -23,6 +23,11 @@ function bodyOf(m: Raw): string {
   return [text, tag].filter(Boolean).join(" ").trim();
 }
 
+/** Erika signs her own messages with "-Erika" or "Erika x". Anything sent from the account without it was written by Michael. */
+export function signedByErika(text: string): boolean {
+  return /(^|[-–—,.!?\s])erika\s*[x♥❤️🙏.!]*$/i.test(text.trim());
+}
+
 /** Michael sometimes answers from Erika's account and signs the message with his name. */
 export function signedByMichael(text: string): boolean {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -42,7 +47,7 @@ function chatFrom(c: Raw, meId: string | null, idx: number): TgChat | null {
     const at = m.date_unixtime ? Number(m.date_unixtime) * 1000 : Date.parse(String(m.date || ""));
     if (!Number.isFinite(at)) continue;
     const fromMe = meId !== null && String(m.from_id) === meId;
-    out.push({ at, fromMe, text: body, michael: fromMe && signedByMichael(body) });
+    out.push({ at, fromMe, text: body, michael: fromMe && !signedByErika(body) });
   }
   if (out.length === 0) return null;
   out.sort((a, b) => a.at - b.at);
@@ -82,7 +87,7 @@ export function applySingleChatMe(raw: unknown, chat: TgChat): TgChat {
   const msgs = Array.isArray(r.messages) ? (r.messages as Raw[]) : [];
   const byTime = new Map<string, boolean>();
   for (const m of msgs) if (m.type === "message") byTime.set(`${m.date_unixtime}|${bodyOf(m)}`, String(m.from) !== clientName);
-  return { ...chat, messages: chat.messages.map((m) => { const me = byTime.get(`${Math.round(m.at / 1000)}|${m.text}`) ?? false; return { ...m, fromMe: me, michael: me && signedByMichael(m.text) }; }) };
+  return { ...chat, messages: chat.messages.map((m) => { const me = byTime.get(`${Math.round(m.at / 1000)}|${m.text}`) ?? false; return { ...m, fromMe: me, michael: me && !signedByErika(m.text) }; }) };
 }
 
 export function lastN(chat: TgChat, n: number | "all"): TgMsg[] {

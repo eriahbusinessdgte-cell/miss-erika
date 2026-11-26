@@ -45,3 +45,12 @@ test("outgoing messages signed Michael are treated as his", () => {
   const p = parseExport({ personal_information: { user_id: 1 }, chats: { list: [{ name: "A", type: "personal_chat", id: 1, messages: [m(1, "Me", "user1", 100, "Well done.\n\nMichael")] }] } });
   assert.equal(p.chats[0].messages[0].michael, true);
 });
+
+import { signedByErika } from "../src/lib/tgImport.ts";
+test("Erika's sign-off is detected, anything else from the account is Michael's", () => {
+  assert.equal(signedByErika("Thanks for sharing.\n\n- Erika"), true);
+  assert.equal(signedByErika("he's able to.Sending you lots of love,Erika x"), true);
+  assert.equal(signedByErika("Hope that helps -Erika"), true);
+  assert.equal(signedByErika("Beautiful stuff. Keep it going and I'll speak to you soon"), false);
+  assert.equal(signedByErika("Much love, Michael"), false);
+});

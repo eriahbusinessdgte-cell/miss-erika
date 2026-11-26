@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { chatJson } from "@/lib/ai";
 import { formatDateTime } from "@/lib/core";
 import {
+  badInternalReport,
   checkUrls,
   ERIKA_SYSTEM,
   buildAnalysisPrompt,
@@ -87,18 +88,27 @@ export async function POST(req: Request) {
     }
     analysis = parsed;
     problems = parsed.reply_needed && !summaryOnly ? [...checkErikaReply(parsed.reply, knownText), ...checkUrls(parsed.reply, allowedUrls)] : [];
+    if (badInternalReport(parsed.internal_report)) problems = [...problems, "internal_report must describe the client in the third person for Michael, never mention Michael by name and never give instructions"];
     if (problems.length === 0) break;
     retryNote = problems.join(", ");
   }
   if (!analysis) return fail("The AI's answer couldn't be read. Press Retry.");
   if (problems.length > 0) {
-    analysis.reply = fallbackReply(client.name, analysis.needs_michael);
-    analysis.flags.push("template_fallback");
+    if (analysis.reply_needed && !summaryOnly) {
+      analysis.reply = fallbackReply(client.name, analysis.needs_michael);
+      analysis.flags.push("template_fallback");
+    }
+    // A report line that still talks to Erika or about Michael is replaced by the plain summary of the message.
+    if (badInternalReport(analysis.internal_report)) analysis.internal_report = analysis.summary;
   }
 
   // Save: older unsent drafts are kept but marked superseded; the new draft stays a draft until marked sent.
   const now = new Date().toISOString();
   let draft: { id: string } | null = null;
+  // Someone (usually Michael) already wrote back after this message, so there is nothing left to draft.
+  const newestFreshAt = Math.max(...fresh.map((m) => new Date(m.sent_at).getTime()));
+  const answeredLater = msgs.some((m) => m.direction === "outgoing" && new Date(m.sent_at).getTime() > newestFreshAt);
+  if (answeredLater) analysis.reply_needed = false;
   if (analysis.reply_needed && !summaryOnly) {
     await supabase.from("reply_drafts").update({ status: "superseded" }).eq("client_id", clientId).in("status", ["draft", "copied"]);
     const ins = await supabase

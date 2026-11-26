@@ -81,7 +81,9 @@ export default function ClientChat() {
     void enqueueAnalysis(id, undefined, last.id);
   }, [loaded, msgs, drafts, aiState, id]);
 
-  const activeDraft = [...drafts].reverse().find((d) => d.status === "draft" || d.status === "copied");
+  // No draft while the newest message in the chat is already an outgoing one (Michael or Erika has answered).
+  const answered = msgs.length > 0 && [...msgs].sort((a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime())[msgs.length - 1].direction === "outgoing";
+  const activeDraft = answered ? undefined : [...drafts].reverse().find((d) => d.status === "draft" || d.status === "copied");
   const lastOut = msgs.filter((m) => m.direction === "outgoing" && !m.history_only).reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
   const unreplied = msgs.filter((m) => m.direction === "incoming" && !m.history_only && new Date(m.created_at).getTime() > lastOut);
   const failed = unreplied.find((m) => m.analysis_error);

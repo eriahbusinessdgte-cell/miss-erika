@@ -68,3 +68,9 @@ test("sent report is flagged as changed only when something changed", () => {
   assert.equal(reportChanged(saved, r.counts, 1500), false);
   assert.equal(reportChanged(saved, { ...r.counts, sent: 1, pending: 0 }, 1500), true);
 });
+
+test("a note that talks to Erika or about Michael is replaced by the summary", () => {
+  const r = run([inc("b", 20, need({ summary: "Ben's back pain has returned.", internal_report: "You need to let Michael know Ben's back hurts." }))]);
+  assert.match(r.body, /Ben's back pain has returned\./);
+  assert.doesNotMatch(r.body, /let Michael know/);
+});

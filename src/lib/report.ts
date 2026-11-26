@@ -25,6 +25,10 @@ export type BuiltReport = { body: string; counts: ReportCounts };
 
 const RANK: Record<string, number> = { URGENT: 0, "MEDIUM PRIORITY": 1, "NOT URGENT": 2 };
 
+// Older analyses sometimes wrote the note to Erika ("You need to let Michael know...") instead of briefing Michael.
+// The report goes straight to Michael, so such a note is replaced by the plain summary.
+const talksToErika = (t: string) => /\bmichael\b/i.test(t) || /^you\s+(need|should|must|have to|can|will)\b/i.test(t.trim()) || /\b(pass (this|it|that) on|let (him|michael) know|please tell)\b/i.test(t);
+
 export function buildReport(args: {
   prettyDate: string;
   periodStart: number;
@@ -74,7 +78,7 @@ export function buildReport(args: {
       name: c.name,
       rank: RANK[a.urgency] ?? 1,
       text:
-        `${c.name.toUpperCase()} – ${tags} – ${a.urgency}\n${a.internal_report || a.summary}\n` +
+        `${c.name.toUpperCase()} – ${tags} – ${a.urgency}\n${a.internal_report && !talksToErika(a.internal_report) ? a.internal_report : a.summary}\n` +
         `Waiting for you: ${reason}.\n` +
         (replied ? `I've replied to ${first}. They're waiting for you to reach out personally.` : `I haven't replied to ${first} yet. They're waiting for you to reach out personally.`),
     });
