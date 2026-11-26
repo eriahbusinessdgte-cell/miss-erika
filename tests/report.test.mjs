@@ -3,80 +3,68 @@ import assert from "node:assert/strict";
 import { buildReport, reportChanged } from "../src/lib/report.ts";
 
 const an = (o) => ({ summary: "s", tags: ["CLIENT UPDATE", "PERSONAL UPDATE"], urgency: "NOT URGENT", internal_report: "Anita shared good news you'll like.", needs_michael: false, michael_reason: "", ...o });
+const need = (o) => an({ urgency: "URGENT", tags: ["CLIENT CONCERN", "NEEDS GUIDANCE"], needs_michael: true, michael_reason: "Back pain returned", internal_report: "Ben says his back pain has returned.", ...o });
 const clients = [
   { id: "a", name: "Anita Gossow", needs_michael: false, michael_reason: "" },
-  { id: "b", name: "Ben Cole", needs_michael: true, michael_reason: "Back pain" },
-  { id: "c", name: "Quiet Cara", needs_michael: false, michael_reason: "" },
+  { id: "b", name: "Ben Cole", needs_michael: false, michael_reason: "" },
+  { id: "c", name: "Cara Moon", needs_michael: false, michael_reason: "" },
 ];
-const msgs = [
-  { client_id: "a", direction: "incoming", created_at: 1000, sent_at: 10, analysis: an({}) },
-  { client_id: "a", direction: "outgoing", created_at: 2000, sent_at: 2000, analysis: null },
-  { client_id: "b", direction: "incoming", created_at: 1500, sent_at: 20, analysis: an({ urgency: "URGENT", tags: ["CLIENT CONCERN", "NEEDS GUIDANCE"], needs_michael: true, michael_reason: "Back pain returned", internal_report: "Ben says his back pain has returned." }) },
-  { client_id: "c", direction: "incoming", created_at: 50, sent_at: 5, analysis: an({}) }, // outside the period
-];
-const r = buildReport({ prettyDate: "Tuesday 24 November", periodStart: 100, periodEnd: 5000, clients, messages: msgs });
+const inc = (id, sent_at, analysis) => ({ client_id: id, direction: "incoming", created_at: 9000, sent_at, analysis });
+const out = (id, sent_at, sender = "erika") => ({ client_id: id, direction: "outgoing", sender, created_at: 9000, sent_at, analysis: null });
+const run = (messages, extra = {}) => buildReport({ prettyDate: "Wed 25 Nov", periodStart: 0, periodEnd: 1, clients, messages, unreadIds: ["a", "b", "c"], ...extra });
 
-test("counts and truthful opening", () => {
-  assert.deepEqual(r.counts, { clients: 2, sent: 1, pending: 1, michael: 1, unanalysed: 0 });
-  assert.match(r.body, /2 clients sent messages\./);
-  assert.match(r.body, /I've replied to 1 of them\. 1 reply is still pending\./);
+test("only clients who need Michael personally are listed", () => {
+  const r = run([inc("a", 10, an({})), inc("b", 20, need({}))]);
+  assert.match(r.body, /1 client needs your personal response\./);
+  assert.match(r.body, /BEN COLE – CLIENT CONCERN – NEEDS GUIDANCE – URGENT/);
+  assert.match(r.body, /Waiting for you: Back pain returned\./);
+  assert.doesNotMatch(r.body, /ANITA GOSSOW/);
+  assert.deepEqual(r.counts, { clients: 1, sent: 0, pending: 1, michael: 1, unanalysed: 0 });
 });
-test("urgent first, heading format, addressed to Michael", () => {
-  assert.ok(r.body.indexOf("BEN COLE – CLIENT CONCERN – NEEDS GUIDANCE – URGENT") < r.body.indexOf("ANITA GOSSOW – CLIENT UPDATE – PERSONAL UPDATE – NOT URGENT"));
-  assert.match(r.body, /\(I haven't sent a reply to Ben yet\.\)/);
-  assert.doesNotMatch(r.body, /Quiet Cara|QUIET CARA/);
+test("says whether Erika has replied", () => {
+  const replied = run([inc("b", 20, need({})), out("b", 30)]);
+  assert.match(replied.body, /I've replied to Ben\. They're waiting for you to reach out personally\./);
+  assert.deepEqual(replied.counts, { clients: 1, sent: 1, pending: 0, michael: 1, unanalysed: 0 });
+  const not = run([inc("b", 20, need({}))]);
+  assert.match(not.body, /I haven't replied to Ben yet\./);
 });
-test("Michael list", () => {
-  assert.match(r.body, /Need your personal response:\n- Ben Cole: Back pain returned/);
+test("left out once Michael himself has written back", () => {
+  const r = run([inc("b", 20, need({})), out("b", 30, "michael")]);
+  assert.match(r.body, /No one needs your personal response today\./);
+  assert.equal(r.counts.michael, 0);
 });
-test("unanalysed message is shown honestly", () => {
-  const x = buildReport({ prettyDate: "d", periodStart: 0, periodEnd: 9999, clients: [clients[0]], messages: [{ ...msgs[0], analysis: null }] });
-  assert.equal(x.counts.unanalysed, 1);
-  assert.match(x.body, /NOT ANALYSED YET/);
+test("a message from Michael does not count as Erika's reply", () => {
+  const r = run([inc("b", 20, need({})), out("b", 10, "michael")]); // Michael wrote before the client's message
+  assert.match(r.body, /I haven't replied to Ben yet\./);
 });
-test("empty period", () => {
-  const x = buildReport({ prettyDate: "d", periodStart: 0, periodEnd: 9999, clients: [], messages: [] });
-  assert.match(x.body, /No client messages came in/);
-  assert.match(x.body, /None today\./);
+test("the client's flag keeps them listed even if this message looks routine", () => {
+  const flagged = [{ ...clients[0], needs_michael: true, michael_reason: "Wants a call" }, clients[1], clients[2]];
+  const r = buildReport({ prettyDate: "d", periodStart: 0, periodEnd: 1, clients: flagged, messages: [inc("a", 10, an({}))], unreadIds: ["a"] });
+  assert.match(r.body, /ANITA GOSSOW/);
+  assert.match(r.body, /Waiting for you: Wants a call\./);
 });
-test("sent report is flagged as changed only when something changed", () => {
-  const saved = { client_count: 2, replies_sent: 1, replies_pending: 1, michael_count: 1, sent_at: new Date(3000).toISOString() };
-  assert.equal(reportChanged(saved, r.counts, 1500), false);
-  assert.equal(reportChanged(saved, { ...r.counts, sent: 2, pending: 0 }, 1500), true);
-  assert.equal(reportChanged(saved, r.counts, 4000), true);
+test("urgent first", () => {
+  const r = run([inc("a", 10, need({ urgency: "NOT URGENT", internal_report: "Anita wants a call." })), inc("b", 20, need({}))]);
+  assert.ok(r.body.indexOf("BEN COLE") < r.body.indexOf("ANITA GOSSOW"));
 });
-
+test("not-yet-analysed chats are counted but not written into the report", () => {
+  const r = run([inc("b", 20, null)]);
+  assert.equal(r.counts.unanalysed, 1);
+  assert.doesNotMatch(r.body, /BEN COLE/);
+});
+test("nobody needs Michael", () => {
+  const r = run([inc("a", 10, an({}))]);
+  assert.match(r.body, /No one needs your personal response today\./);
+});
 test("Monday/Tuesday report lists quiet clients; none listed when there are none", () => {
-  const q = buildReport({ prettyDate: "d", periodStart: 100, periodEnd: 5000, clients, messages: msgs, quiet: { since: "Tue 17 Nov", clients: [{ name: "Cara Moon", lastHeard: "Mon 9 Nov" }] } });
+  const q = run([inc("b", 20, need({}))], { quiet: { since: "Tue 17 Nov", clients: [{ name: "Cara Moon", lastHeard: "Mon 9 Nov" }] } });
   assert.match(q.body, /Quiet clients \(active clients we haven't heard from since Tue 17 Nov\):\n- Cara Moon \(last message Mon 9 Nov\)/);
-  assert.ok(q.body.indexOf("Quiet clients") < q.body.indexOf("Need your personal response"));
-  const none = buildReport({ prettyDate: "d", periodStart: 100, periodEnd: 5000, clients, messages: msgs, quiet: { since: "x", clients: [] } });
+  const none = run([inc("b", 20, need({}))], { quiet: { since: "x", clients: [] } });
   assert.doesNotMatch(none.body, /Quiet clients/);
 });
-
-test("unread mode: only chats marked unread, using real send times, history included", () => {
-  const ms = [
-    { client_id: "a", direction: "incoming", created_at: 9000, sent_at: 100, analysis: an({}) },
-    { client_id: "a", direction: "outgoing", created_at: 9000, sent_at: 200, analysis: null }, // replied after (real time)
-    { client_id: "b", direction: "incoming", created_at: 9000, sent_at: 300, analysis: null }, // history, not analysed
-    { client_id: "c", direction: "incoming", created_at: 9000, sent_at: 50, analysis: an({}) }, // not unread
-  ];
-  const x = buildReport({ prettyDate: "d", periodStart: 0, periodEnd: 1, clients, messages: ms, unreadIds: ["a", "b"] });
-  assert.deepEqual(x.counts, { clients: 2, sent: 1, pending: 1, michael: 1, unanalysed: 1 });
-  assert.doesNotMatch(x.body, /QUIET CARA/);
-  assert.match(x.body, /ANITA GOSSOW/);
-  assert.match(x.body, /BEN COLE – NOT ANALYSED YET/);
-});
-test("unread mode: nothing unread", () => {
-  const x = buildReport({ prettyDate: "d", periodStart: 0, periodEnd: 1, clients, messages: msgs, unreadIds: [] });
-  assert.match(x.body, /No unread client chats for this update\./);
-});
-
-test("a chat that needs no reply is not counted as pending", async () => {
-  const { buildReport } = await import("../src/lib/report.ts");
-  const mk = (id, noReply) => ({ client_id: id, direction: "incoming", created_at: 1, sent_at: 1, analysis: { summary: "s", tags: ["CLIENT UPDATE"], urgency: "NOT URGENT", internal_report: "They said thanks.", needs_michael: false, michael_reason: "", reply_needed: noReply ? false : true } });
-  const r = buildReport({ prettyDate: "Wed", periodStart: 0, periodEnd: 9, clients: [{ id: "a", name: "Anita G", needs_michael: false, michael_reason: "" }, { id: "b", name: "Bo K", needs_michael: false, michael_reason: "" }], messages: [mk("a", false), mk("b", true)], unreadIds: ["a", "b"] });
-  assert.equal(r.counts.pending, 1);
-  assert.match(r.body, /didn't need a reply from me/);
-  assert.match(r.body, /No reply needed from me/);
+test("sent report is flagged as changed only when something changed", () => {
+  const r = run([inc("b", 20, need({}))]);
+  const saved = { client_count: 1, replies_sent: 0, replies_pending: 1, michael_count: 1, sent_at: new Date(3000).toISOString() };
+  assert.equal(reportChanged(saved, r.counts, 1500), false);
+  assert.equal(reportChanged(saved, { ...r.counts, sent: 1, pending: 0 }, 1500), true);
 });

@@ -96,7 +96,7 @@ export default function DailyReportPage() {
   }, [date, tz, clients, dismissed, settings?.quiet_inactive_days]);
 
   const built = useMemo(() => {
-    const rm: RMessage[] = msgs.map((m) => ({ client_id: m.client_id, direction: m.direction, created_at: new Date(m.created_at).getTime(), sent_at: new Date(m.sent_at).getTime(), analysis: m.analysis }));
+    const rm: RMessage[] = msgs.map((m) => ({ client_id: m.client_id, direction: m.direction, sender: m.sender, created_at: new Date(m.created_at).getTime(), sent_at: new Date(m.sent_at).getTime(), analysis: m.analysis }));
     return buildReport({ prettyDate: prettyDate(date), periodStart, periodEnd, clients, messages: rm, unreadIds, quiet: quietList ? { since: quietList.since, clients: quietList.list } : undefined });
   }, [msgs, clients, date, periodStart, periodEnd, quietList, unreadIds]);
 
@@ -238,7 +238,7 @@ export default function DailyReportPage() {
       <div className="page-head">
         <div>
           <h1>Daily Client Report</h1>
-          <p className="sub">{prettyDate(date)} · covers every chat marked unread, plus any chat with a new client message since the last sent report{isSent ? " when it was sent" : ` (${unreadIds.length} right now)`}</p>
+          <p className="sub">{prettyDate(date)} · lists the clients who need Michael to respond personally, picked from every chat with something new{isSent ? " when it was sent" : ` (${unreadIds.length} chats checked right now)`}</p>
         </div>
         <div className="field">
           <label htmlFor="rd">Report date</label>
@@ -284,11 +284,11 @@ export default function DailyReportPage() {
             <section className="card">
               <div className="panel-title">This report</div>
               <div className="scores">
-                <div className="score"><b>{shown.clients}</b><span>Clients</span></div>
-                <div className="score"><b>{shown.sent}</b><span>Replied</span></div>
-                <div className="score"><b>{shown.pending}</b><span>Pending</span></div>
+                <div className="score"><b>{shown.clients}</b><span>Waiting for Michael</span></div>
+                <div className="score"><b>{shown.sent}</b><span>You replied</span></div>
+                <div className="score"><b>{shown.pending}</b><span>Not replied yet</span></div>
               </div>
-              <p className="sub" style={{ marginTop: 8 }}>{shown.michael} need your personal response.</p>
+              
             </section>
             {versions.length > 1 && (
               <section className="card">

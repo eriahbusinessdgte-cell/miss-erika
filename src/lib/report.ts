@@ -14,6 +14,7 @@ export type RAnalysis = {
 export type RMessage = {
   client_id: string;
   direction: "incoming" | "outgoing";
+  sender?: "erika" | "michael";
   created_at: number; // when it was pasted / saved (ms)
   sent_at: number; // when the client originally sent it (ms)
   analysis: RAnalysis | null;
@@ -34,10 +35,10 @@ export function buildReport(args: {
   /** When given, the report covers exactly these chats (the ones marked unread) instead of messages saved in the period. */
   unreadIds?: string[];
 }): BuiltReport {
-  const entries: { name: string; rank: number; text: string; michael?: string }[] = [];
+  // The report is only for clients who need Michael to respond personally. Erika may have replied to them too.
+  const entries: { name: string; rank: number; text: string }[] = [];
   let sent = 0;
   let pending = 0;
-  let handled = 0;
   let unanalysed = 0;
 
   const byUnread = !!args.unreadIds;
@@ -52,60 +53,45 @@ export function buildReport(args: {
     // By unread chat we compare real send times, because history imported together shares one saved time.
     const at = (m: RMessage) => (byUnread ? m.sent_at : m.created_at);
     const newest = Math.max(...fresh.map(at));
-    const replied = mine.some((m) => m.direction === "outgoing" && at(m) > newest);
-    const withAnalysis = [...fresh].filter((m) => m.analysis).sort((a, b) => at(b) - at(a))[0];
+    const withAnalysis = [...fresh].filter((m) => m.analysis).sort((x, y) => at(y) - at(x))[0];
     const a = withAnalysis?.analysis || null;
-    // No reply from Erika is needed when Michael is already in the conversation or it is a plain closing thank-you.
-    const noReply = a?.reply_needed === false && !replied;
-    if (replied) sent++;
-    else if (noReply) handled++;
-    else pending++;
-    const name = c.name.toUpperCase();
-    let text: string;
-    if (a) {
-      const tags = a.tags.length ? a.tags.join(" – ") : "CLIENT UPDATE";
-      text = `${name} – ${tags} – ${a.urgency}\n${a.internal_report || a.summary}`;
-    } else {
+    if (!a) {
       unanalysed++;
-      text = `${name} – NOT ANALYSED YET\nThey sent a message that I haven't been able to summarise yet. I'll check it directly.`;
+      continue;
     }
-    if (noReply) text += `\n(No reply needed from me: this continues your conversation with ${c.name.split(/\s+/)[0]}, or it was just a thank-you.)`;
-    else if (!replied) text += `\n(I haven't sent a reply to ${c.name.split(/\s+/)[0]} yet.)`;
-    const needs = a ? a.needs_michael || c.needs_michael : c.needs_michael;
+    const needs = a.needs_michael || c.needs_michael;
+    if (!needs) continue;
+    // Once Michael has personally written back after the client's message, there is nothing left for him to do.
+    const michaelAnswered = mine.some((m) => m.direction === "outgoing" && m.sender === "michael" && at(m) > newest);
+    if (michaelAnswered) continue;
+    const replied = mine.some((m) => m.direction === "outgoing" && m.sender !== "michael" && at(m) > newest);
+    if (replied) sent++;
+    else pending++;
+    const first = c.name.split(/\s+/)[0];
+    const tags = a.tags.length ? a.tags.join(" – ") : "CLIENT UPDATE";
+    const reason = a.michael_reason || c.michael_reason || "Needs your personal response";
     entries.push({
       name: c.name,
-      rank: a ? (RANK[a.urgency] ?? 1) : 1,
-      text,
-      michael: needs ? a?.michael_reason || c.michael_reason || "Needs your personal response" : undefined,
+      rank: RANK[a.urgency] ?? 1,
+      text:
+        `${c.name.toUpperCase()} – ${tags} – ${a.urgency}\n${a.internal_report || a.summary}\n` +
+        `Waiting for you: ${reason}.\n` +
+        (replied ? `I've replied to ${first}. They're waiting for you to reach out personally.` : `I haven't replied to ${first} yet. They're waiting for you to reach out personally.`),
     });
   }
 
   entries.sort((x, y) => x.rank - y.rank || x.name.localeCompare(y.name));
   const n = entries.length;
-  const michael = entries.filter((e) => e.michael);
 
-  const lines: string[] = [`Hi Michael, here's the client update for ${args.prettyDate}.`];
-  if (n === 0) {
-    lines.push(byUnread ? "No unread client chats for this update." : "No client messages came in for this period.");
-  } else {
-    lines.push(`${n} client${n === 1 ? "" : "s"} sent messages.`);
-    if (handled > 0) {
-      const bits = [`${sent} replied`, `${pending} still pending`, `${handled} didn't need a reply from me`];
-      lines.push(`Replies: ${bits.join(", ")}.`);
-    } else if (pending === 0) lines.push(n === 1 ? "I've replied to them." : "I've replied to all of them.");
-    else if (sent === 0) lines.push(n === 1 ? "I haven't replied yet." : "I haven't replied to any of them yet.");
-    else lines.push(`I've replied to ${sent} of them. ${pending} ${pending === 1 ? "reply is" : "replies are"} still pending.`);
-  }
+  const lines: string[] = [`Hi Michael, here's the update for ${args.prettyDate}.`];
+  lines.push(n === 0 ? "No one needs your personal response today." : `${n} client${n === 1 ? " needs" : "s need"} your personal response.`);
   if (n > 0) lines.push("", entries.map((e) => e.text).join("\n\n"));
   if (args.quiet && args.quiet.clients.length > 0) {
     lines.push("", `Quiet clients (active clients we haven't heard from since ${args.quiet.since}):`);
     args.quiet.clients.forEach((q) => lines.push(`- ${q.name} (last message ${q.lastHeard})`));
   }
-  lines.push("", "Need your personal response:");
-  if (michael.length === 0) lines.push("None today.");
-  else michael.forEach((e) => lines.push(`- ${e.name}: ${e.michael}`));
 
-  return { body: lines.join("\n"), counts: { clients: n, sent, pending, michael: michael.length, unanalysed } };
+  return { body: lines.join("\n"), counts: { clients: n, sent, pending, michael: n, unanalysed } };
 }
 
 /** True if saved messages or replies have changed since a sent report was produced. */
