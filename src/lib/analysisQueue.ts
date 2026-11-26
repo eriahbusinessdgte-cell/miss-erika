@@ -14,7 +14,7 @@ const notify = () => {
   listeners.forEach((l) => l());
 };
 
-async function run(clientId: string, endpoint: string, messageId?: string): Promise<Result> {
+async function run(clientId: string, endpoint: string, messageId?: string, summaryOnly?: boolean): Promise<Result> {
   queued.delete(key(endpoint, clientId)); // anything pasted from now on needs a fresh run
   running.add(key(endpoint, clientId));
   notify();
@@ -22,7 +22,7 @@ async function run(clientId: string, endpoint: string, messageId?: string): Prom
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clientId, messageId }),
+      body: JSON.stringify({ clientId, messageId, summaryOnly }),
     });
     if (res.status === 401) return { ok: false, error: "Your session has expired. Please sign in again." };
     const data = await res.json().catch(() => null);
@@ -41,11 +41,12 @@ export const TELEGRAM = "/api/telegram/analyze";
 export const INSTAGRAM = "/api/instagram/analyze";
 export const CHECKIN = "/api/telegram/checkin";
 
-export function enqueueAnalysis(clientId: string, endpoint: string = TELEGRAM, messageId?: string): Promise<Result> {
+/** summaryOnly: write the summary and tags for the report but no reply draft and no change to the needs-a-reply flag. */
+export function enqueueAnalysis(clientId: string, endpoint: string = TELEGRAM, messageId?: string, summaryOnly?: boolean): Promise<Result> {
   const k = key(endpoint, clientId);
   const existing = queued.get(k);
   if (existing) return existing; // a run for this client hasn't started yet and will include the new message
-  const p = chain.then(() => run(clientId, endpoint, messageId));
+  const p = chain.then(() => run(clientId, endpoint, messageId, summaryOnly));
   queued.set(k, p);
   chain = p.catch(() => undefined);
   notify();

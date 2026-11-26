@@ -29,10 +29,12 @@ export async function POST(req: Request) {
 
   let clientId = "";
   let messageId = "";
+  let summaryOnly = false;
   try {
     const body = await req.json();
     clientId = String(body.clientId || "");
     messageId = String(body.messageId || "");
+    summaryOnly = body.summaryOnly === true;
   } catch {
     /* handled below */
   }
@@ -84,7 +86,7 @@ export async function POST(req: Request) {
       continue;
     }
     analysis = parsed;
-    problems = parsed.reply_needed ? [...checkErikaReply(parsed.reply, knownText), ...checkUrls(parsed.reply, allowedUrls)] : [];
+    problems = parsed.reply_needed && !summaryOnly ? [...checkErikaReply(parsed.reply, knownText), ...checkUrls(parsed.reply, allowedUrls)] : [];
     if (problems.length === 0) break;
     retryNote = problems.join(", ");
   }
@@ -97,7 +99,7 @@ export async function POST(req: Request) {
   // Save: older unsent drafts are kept but marked superseded; the new draft stays a draft until marked sent.
   const now = new Date().toISOString();
   let draft: { id: string } | null = null;
-  if (analysis.reply_needed) {
+  if (analysis.reply_needed && !summaryOnly) {
     await supabase.from("reply_drafts").update({ status: "superseded" }).eq("client_id", clientId).in("status", ["draft", "copied"]);
     const ins = await supabase
       .from("reply_drafts")
@@ -124,8 +126,8 @@ export async function POST(req: Request) {
     summary: analysis.summary,
     tags: analysis.tags,
     urgency: analysis.urgency,
-    needs_reply: analysis.reply_needed,
   };
+  if (!summaryOnly) patch.needs_reply = analysis.reply_needed;
   if (analysis.needs_michael) {
     patch.needs_michael = true;
     patch.michael_reason = analysis.michael_reason;

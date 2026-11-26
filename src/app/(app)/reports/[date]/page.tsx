@@ -117,7 +117,12 @@ export default function DailyReportPage() {
   const alreadySent = versions.length > 0 && versions[versions.length - 1].status === "sent";
   const analyseAll = useCallback(async () => {
     setAnalysing(true);
-    for (const t of toAnalyse) await enqueueAnalysis(t.client_id, TELEGRAM, t.id);
+    for (const t of toAnalyse) {
+      // A chat Erika has already answered only needs a summary for the report, not a new reply draft.
+      const inc = msgs.find((m) => m.id === t.id);
+      const answered = !!inc && msgs.some((m) => m.client_id === t.client_id && m.direction === "outgoing" && new Date(m.sent_at).getTime() > new Date(inc.sent_at).getTime());
+      await enqueueAnalysis(t.client_id, TELEGRAM, t.id, answered);
+    }
     await load();
     setAnalysing(false);
   }, [toAnalyse, load]);
