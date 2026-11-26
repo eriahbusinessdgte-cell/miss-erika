@@ -9,6 +9,8 @@ import { addDays, formatDateTime, weekdayOf, zonedToUtc } from "@/lib/core";
 import type { Client } from "@/lib/types";
 import { isQuiet } from "@/lib/clients";
 import { TelegramImport } from "@/components/TelegramImport";
+import { usePreviews } from "@/components/usePreviews";
+import { previewLine } from "@/lib/inbox";
 
 function urgencyChip(u: Client["urgency"]) {
   if (u === "URGENT") return <span className="chip high">URGENT</span>;
@@ -37,6 +39,7 @@ export default function TelegramClients() {
   }, []);
   void router;
 
+  const previews = usePreviews("client", clients);
   const tz = settings?.timezone || "Asia/Manila";
   const quietDays = settings?.quiet_inactive_days ?? 6;
   const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: tz });
@@ -132,11 +135,11 @@ export default function TelegramClients() {
           <ul className="list">
             {shown.map((c) => (
               <li key={c.id}>
-                <Link href={`/telegram/${c.id}`} className="client-row">
+                <Link href={`/telegram/${c.id}`} className={`client-row${previews[c.id]?.unread ? " unread" : ""}`}>
                   <span className="avatar">{c.name.slice(0, 1).toUpperCase()}</span>
                   <span style={{ minWidth: 0 }}>
                     <span className="task-title">{c.name} {c.telegram_username && <span className="sub" style={{ fontWeight: 400 }}>@{c.telegram_username}</span>}</span>
-                    {c.summary && <span className="task-desc" style={{ display: "block" }}>{c.summary}</span>}
+                    {previews[c.id] ? <span className="preview">{previewLine(previews[c.id])}</span> : c.summary ? <span className="task-desc" style={{ display: "block" }}>{c.summary}</span> : null}
                     <span className="meta">
                       {urgencyChip(c.urgency)}
                       {c.tags.map((t) => <span key={t} className="chip auto">{t}</span>)}
@@ -148,6 +151,7 @@ export default function TelegramClients() {
                   </span>
                   <span className="client-side">
                     <span className="sub" style={{ fontSize: 12 }}>{c.last_message_at ? `Last message ${formatDateTime(c.last_message_at, tz)}` : "No messages yet"}</span>
+                    {previews[c.id]?.unread && <span className="unread-dot" aria-label="Unread" />}
                   </span>
                 </Link>
               </li>

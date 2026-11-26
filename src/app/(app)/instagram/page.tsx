@@ -8,9 +8,12 @@ import { createClient } from "@/lib/supabase/client";
 import { formatDateTime, zonedToUtc } from "@/lib/core";
 import { ALL_STAGES, SOURCE_LABEL, followupState, openerFor, type Source } from "@/lib/ig";
 import type { IgLead } from "@/lib/types";
+import { usePreviews } from "@/components/usePreviews";
+import { previewLine } from "@/lib/inbox";
 
 export default function InstagramLeads() {
   const { leads, settings, reloadLeads } = useAppData();
+  const previews = usePreviews("lead", leads);
   const tz = settings?.timezone || "Asia/Manila";
   const [q, setQ] = useState("");
   const [stage, setStage] = useState("all");
@@ -135,14 +138,14 @@ export default function InstagramLeads() {
           <ul className="list">
             {shown.map((l) => (
               <li key={l.id}>
-                <Link href={`/instagram/${l.id}`} className="client-row">
+                <Link href={`/instagram/${l.id}`} className={`client-row${previews[l.id]?.unread ? " unread" : ""}`}>
                   <span className="avatar">{l.name.slice(0, 1).toUpperCase()}</span>
                   <span style={{ minWidth: 0 }}>
                     <span className="task-title">{l.name} {l.handle && <span className="sub" style={{ fontWeight: 400 }}>@{l.handle}</span>}</span>
-                    {l.summary && <span className="task-desc" style={{ display: "block" }}>{l.summary}</span>}
+                    {previews[l.id] ? <span className="preview">{previewLine(previews[l.id])}</span> : l.summary ? <span className="task-desc" style={{ display: "block" }}>{l.summary}</span> : null}
                     {chips(l)}
                   </span>
-                  <span className="client-side"><span className="sub" style={{ fontSize: 12 }}>{l.last_inbound_at ? `They wrote ${formatDateTime(l.last_inbound_at, tz)}` : "No reply yet"}</span></span>
+                  <span className="client-side"><span className="sub" style={{ fontSize: 12 }}>{l.last_inbound_at ? `They wrote ${formatDateTime(l.last_inbound_at, tz)}` : "No reply yet"}</span>{previews[l.id]?.unread && <span className="unread-dot" aria-label="Unread" />}</span>
                 </Link>
               </li>
             ))}
