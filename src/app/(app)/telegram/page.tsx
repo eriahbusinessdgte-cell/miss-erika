@@ -10,6 +10,7 @@ import type { Client } from "@/lib/types";
 import { isQuiet } from "@/lib/clients";
 import { TelegramImport } from "@/components/TelegramImport";
 import { usePreviews } from "@/components/usePreviews";
+import { RowMenu } from "@/components/RowMenu";
 import { previewLine } from "@/lib/inbox";
 
 function urgencyChip(u: Client["urgency"]) {
@@ -39,7 +40,14 @@ export default function TelegramClients() {
   }, []);
   void router;
 
-  const previews = usePreviews("client", clients);
+  const [previews, reloadPreviews] = usePreviews("client", clients);
+  const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
+  async function toggleRead(id: string) {
+    const isUnread = !!previews[id]?.unread;
+    await createClient().from("clients").update(isUnread ? { marked_unread: false, last_opened_at: new Date().toISOString() } : { marked_unread: true }).eq("id", id);
+    setMenu(null);
+    reloadPreviews();
+  }
   const tz = settings?.timezone || "Asia/Manila";
   const quietDays = settings?.quiet_inactive_days ?? 6;
   const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: tz });
@@ -135,8 +143,8 @@ export default function TelegramClients() {
           <ul className="list">
             {shown.map((c) => (
               <li key={c.id}>
-                <Link href={`/telegram/${c.id}`} className={`client-row${previews[c.id]?.unread ? " unread" : ""}`}>
-                  <span className="avatar">{c.name.slice(0, 1).toUpperCase()}</span>
+                <Link href={`/telegram/${c.id}`} className={`client-row${previews[c.id]?.unread ? " unread" : ""}`} onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, id: c.id }); }}>
+                  <span className="avatar">{c.name.slice(0, 1).toUpperCase()}{isQuiet(c, quietCutoff) && <span className="quiet-flag" title="Quiet client" aria-label="Quiet client"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 1.5v13" stroke="#b42318" strokeWidth="1.6" strokeLinecap="round"/><path d="M3.8 2.2h8.4l-2 3 2 3H3.8z" fill="#d92d20"/></svg></span>}</span>
                   <span style={{ minWidth: 0 }}>
                     <span className="task-title">{c.name} {c.telegram_username && <span className="sub" style={{ fontWeight: 400 }}>@{c.telegram_username}</span>}</span>
                     {previews[c.id] ? <span className="preview">{previewLine(previews[c.id])}</span> : c.summary ? <span className="task-desc" style={{ display: "block" }}>{c.summary}</span> : null}
@@ -193,6 +201,7 @@ export default function TelegramClients() {
           </form>
         </div>
       )}
+      {menu && <RowMenu x={menu.x} y={menu.y} unread={!!previews[menu.id]?.unread} onToggle={() => toggleRead(menu.id)} onClose={() => setMenu(null)} />}
     </>
   );
 }

@@ -9,11 +9,19 @@ import { formatDateTime, zonedToUtc } from "@/lib/core";
 import { ALL_STAGES, SOURCE_LABEL, followupState, openerFor, type Source } from "@/lib/ig";
 import type { IgLead } from "@/lib/types";
 import { usePreviews } from "@/components/usePreviews";
+import { RowMenu } from "@/components/RowMenu";
 import { previewLine } from "@/lib/inbox";
 
 export default function InstagramLeads() {
   const { leads, settings, reloadLeads } = useAppData();
-  const previews = usePreviews("lead", leads);
+  const [previews, reloadPreviews] = usePreviews("lead", leads);
+  const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
+  async function toggleRead(id: string) {
+    const isUnread = !!previews[id]?.unread;
+    await createClient().from("ig_leads").update(isUnread ? { marked_unread: false, last_opened_at: new Date().toISOString() } : { marked_unread: true }).eq("id", id);
+    setMenu(null);
+    reloadPreviews();
+  }
   const tz = settings?.timezone || "Asia/Manila";
   const [q, setQ] = useState("");
   const [stage, setStage] = useState("all");
@@ -138,7 +146,7 @@ export default function InstagramLeads() {
           <ul className="list">
             {shown.map((l) => (
               <li key={l.id}>
-                <Link href={`/instagram/${l.id}`} className={`client-row${previews[l.id]?.unread ? " unread" : ""}`}>
+                <Link href={`/instagram/${l.id}`} className={`client-row${previews[l.id]?.unread ? " unread" : ""}`} onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, id: l.id }); }}>
                   <span className="avatar">{l.name.slice(0, 1).toUpperCase()}</span>
                   <span style={{ minWidth: 0 }}>
                     <span className="task-title">{l.name} {l.handle && <span className="sub" style={{ fontWeight: 400 }}>@{l.handle}</span>}</span>
@@ -183,6 +191,7 @@ export default function InstagramLeads() {
           </form>
         </div>
       )}
+      {menu && <RowMenu x={menu.x} y={menu.y} unread={!!previews[menu.id]?.unread} onToggle={() => toggleRead(menu.id)} onClose={() => setMenu(null)} />}
     </>
   );
 }

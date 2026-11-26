@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Preview } from "@/lib/inbox";
 
@@ -9,6 +9,8 @@ type Row = { client_id?: string; lead_id?: string; direction: "incoming" | "outg
 /** Latest message and unread flag for every client (or Instagram lead), keyed by id. Refreshes when `dep` changes. */
 export function usePreviews(kind: "client" | "lead", dep: unknown) {
   const [map, setMap] = useState<Record<string, Preview>>({});
+  const [tick, setTick] = useState(0);
+  const reload = useCallback(() => setTick((t) => t + 1), []);
   useEffect(() => {
     let alive = true;
     createClient()
@@ -22,6 +24,6 @@ export function usePreviews(kind: "client" | "lead", dep: unknown) {
     return () => {
       alive = false;
     };
-  }, [kind, dep]);
-  return map;
+  }, [kind, dep, tick]);
+  return [map, reload] as const;
 }
