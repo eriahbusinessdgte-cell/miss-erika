@@ -170,8 +170,8 @@ export default function Dashboard() {
           <div className="ring-wrap">
             <div className="ring">
               <svg width="150" height="150" viewBox="0 0 150 150" role="img" aria-label={`${pct} percent of today's tasks complete`}>
-                <circle cx="75" cy="75" r="62" fill="none" stroke="#e6e8f0" strokeWidth="14" />
-                <circle cx="75" cy="75" r="62" fill="none" stroke="#1f8a4c" strokeWidth="14" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ * (1 - pct / 100)} />
+                <circle cx="75" cy="75" r="62" fill="none" stroke="#e3e3e0" strokeWidth="14" />
+                <circle cx="75" cy="75" r="62" fill="none" stroke="#12a150" strokeWidth="14" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ * (1 - pct / 100)} />
               </svg>
               <div className="mid"><span className="pct">{pct}%</span><span className="lbl">Complete</span></div>
             </div>
