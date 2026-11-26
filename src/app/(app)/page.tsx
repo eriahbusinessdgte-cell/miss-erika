@@ -78,7 +78,6 @@ export default function Dashboard() {
     createClient().from("quiet_flags").select("id,client_id,note,status,resolved_at").eq("status", "flagged").then(({ data }) => setQuietOpen(((data as { id: string; client_id: string; note: string; resolved_at: string | null }[]) || []).filter((f) => !f.resolved_at)));
   }, [clients]);
   const [editing, setEditing] = useState<Task | null | undefined>(undefined);
-  const [hot, setHot] = useState<{ count: number; sent: boolean } | null>(null);
   if (!settings) return null;
 
   const rank = (t: Task) => (t.kind === "daily_paste" ? 0 : t.kind === "daily_report" ? 1 : 2);
@@ -103,8 +102,6 @@ export default function Dashboard() {
   const dow = weekdayOf(today);
   const reminders: { text: string; href: string }[] = [];
   if (dow === 1) reminders.push({ text: "Monday: check in with every active Telegram client individually.", href: "/kpis/checkins" });
-  if (dow === 1 || (dow === 2 && hot && hot.count === 0)) reminders.push({ text: "Monday: look for this week's Hot Seat participants and add their names to the Hot Seat note.", href: "#hot-seat" });
-  if (dow === 3 && !(hot && hot.sent)) reminders.push({ text: "Wednesday: send Michael tomorrow's Hot Seat report (who is on the Hot Seat on Thursday).", href: "#hot-seat" });
   if (dow === 2) reminders.push({ text: "Tuesday: review quiet clients and flag them to Michael by the end of today.", href: "/kpis/quiet" });
   if (dow === 5) reminders.push({ text: "Friday: copy and send the weekly KPI report to Michael.", href: "/kpis" });
 
@@ -197,7 +194,7 @@ export default function Dashboard() {
       </div>
 
       <div className="cols">
-        <HotSeatCard today={today} manager={manager} from={settings.display_name} onState={setHot} />
+        <HotSeatCard today={today} manager={manager} from={settings.display_name} />
         <section className="card">
           <div className="card-head"><h2><Icon name="bell" /> Important Reminders</h2></div>
           {reminders.length === 0 ? (

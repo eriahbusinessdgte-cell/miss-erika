@@ -12,6 +12,7 @@ import {
   type Recurrence,
 } from "@/lib/core";
 import { SEED_RESOURCES } from "@/lib/seed";
+import { HOT_SEAT_FIND_TITLE, HOT_SEAT_REPORT_TITLE, hotSeatTasksDue } from "@/lib/hotseat";
 
 type TaskInput = {
   id?: string;
@@ -209,6 +210,24 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
               else changed = true;
             }
           }
+        }
+        // Weekly Hot Seat tasks: look for participants (Monday), send Michael the report (Wednesday).
+        for (const h of hotSeatTasksDue(today)) {
+          if (tasks.some((t) => t.kind === h.kind && t.ref_date === h.ref_date)) continue;
+          const find = h.kind === "hot_seat_find";
+          const { error } = await supabase.from("tasks").insert({
+            title: find ? HOT_SEAT_FIND_TITLE : HOT_SEAT_REPORT_TITLE,
+            description: find
+              ? "Find who will sit in the Hot Seat this Thursday and add their names to the Hot Seat note on the dashboard."
+              : "Copy the Hot Seat report from the dashboard note and send it to Michael, then press Mark as sent.",
+            kind: h.kind,
+            ref_date: h.ref_date,
+            due_date: h.ref_date,
+            priority: "High",
+            recurrence: "None",
+          });
+          if (error && error.code !== DUPLICATE) fail("Couldn't create the Hot Seat task", error.message);
+          else changed = true;
         }
         if (changed) await loadTasks();
       } finally {

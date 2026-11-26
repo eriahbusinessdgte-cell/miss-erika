@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { weekStartOf, thursdayOf, parseNames, buildHotSeatReport } from "../src/lib/hotseat.ts";
+import { weekStartOf, thursdayOf, parseNames, buildHotSeatReport, hotSeatTasksDue } from "../src/lib/hotseat.ts";
 
 test("week starts on Monday; weekend counts toward the next week", () => {
   assert.equal(weekStartOf("2026-11-23"), "2026-11-23"); // Monday
@@ -24,4 +24,13 @@ test("report lists names for Thursday", () => {
 });
 test("report with no names says so", () => {
   assert.match(buildHotSeatReport([], "Thursday, 26 Nov", "Michael", "Erika"), /No one has been confirmed/);
+});
+
+test("weekly Hot Seat tasks appear on the right days", () => {
+  assert.deepEqual(hotSeatTasksDue("2026-11-23"), [{ kind: "hot_seat_find", ref_date: "2026-11-23" }]); // Mon
+  assert.deepEqual(hotSeatTasksDue("2026-11-24"), [{ kind: "hot_seat_find", ref_date: "2026-11-23" }]); // Tue
+  assert.deepEqual(hotSeatTasksDue("2026-11-25"), [{ kind: "hot_seat_find", ref_date: "2026-11-23" }, { kind: "hot_seat_report", ref_date: "2026-11-25" }]); // Wed
+  assert.deepEqual(hotSeatTasksDue("2026-11-26"), [{ kind: "hot_seat_report", ref_date: "2026-11-25" }]); // Thu
+  assert.deepEqual(hotSeatTasksDue("2026-11-27"), []); // Fri
+  assert.deepEqual(hotSeatTasksDue("2026-11-28"), []); // Sat
 });

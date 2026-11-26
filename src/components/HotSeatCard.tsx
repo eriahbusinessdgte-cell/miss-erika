@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAppData } from "@/components/AppData";
 import { buildHotSeatReport, parseNames, thursdayOf, weekStartOf } from "@/lib/hotseat";
 
 type Row = { id: string; name: string };
@@ -16,6 +17,7 @@ export function HotSeatCard({
   today, manager, from, onState,
 }: { today: string; manager: string; from: string; onState?: (s: { count: number; sent: boolean }) => void }) {
   const supabase = createClient();
+  const { tasks, setTaskStatus } = useAppData();
   const week = weekStartOf(today);
   const thursday = thursdayOf(week);
   const [rows, setRows] = useState<Row[]>([]);
@@ -74,6 +76,10 @@ export function HotSeatCard({
     setErr(null);
     const { error } = await supabase.from("hot_seat_weeks").upsert({ week_start: week, report_sent_at: sent ? new Date().toISOString() : null }, { onConflict: "user_id,week_start" });
     if (error) return setErr("Couldn't save: " + error.message);
+    if (sent) {
+      const t = tasks.find((x) => x.kind === "hot_seat_report" && x.status !== "Done" && x.due_date && weekStartOf(x.due_date) === week);
+      if (t) await setTaskStatus(t, "Done");
+    }
     await load();
   }
 

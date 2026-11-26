@@ -23,7 +23,7 @@ export type Task = {
   status: "To do" | "In progress" | "Done";
   recurrence: Recurrence;
   notes: string;
-  kind: "manual" | "daily_paste" | "daily_report" | "monday_checkin" | "quiet_flag";
+  kind: "manual" | "daily_paste" | "daily_report" | "monday_checkin" | "quiet_flag" | "hot_seat_find" | "hot_seat_report";
   ref_date: string | null;
   completed_at: string | null;
   created_at: string;

@@ -42,3 +42,19 @@ export function buildHotSeatReport(names: string[], thursdayLabel: string, manag
   const list = names.map((n, i) => `${i + 1}. ${n}`).join("\n");
   return `${head}\n\n${list}\n\n${from}`;
 }
+
+export const HOT_SEAT_FIND_TITLE = "Look for this week's Hot Seat participants";
+export const HOT_SEAT_REPORT_TITLE = "Send Michael the Hot Seat report for Thursday";
+
+/**
+ * Which weekly Hot Seat tasks should exist today. Monday's task appears from Monday to Wednesday (so it is still
+ * there if the app is opened late), Wednesday's from Wednesday to Thursday. ref_date is the day the task belongs to.
+ */
+export function hotSeatTasksDue(today: string): { kind: "hot_seat_find" | "hot_seat_report"; ref_date: string }[] {
+  const w = dow(today);
+  const monday = weekStartOf(today);
+  const out: { kind: "hot_seat_find" | "hot_seat_report"; ref_date: string }[] = [];
+  if (w >= 1 && w <= 3) out.push({ kind: "hot_seat_find", ref_date: monday });
+  if (w >= 3 && w <= 4) out.push({ kind: "hot_seat_report", ref_date: plus(monday, 2) });
+  return out;
+}

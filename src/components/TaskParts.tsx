@@ -13,6 +13,7 @@ export function taskHref(t: Task): string | null {
   if (t.kind === "daily_report" && t.ref_date) return `/reports/${t.ref_date}`;
   if (t.kind === "monday_checkin") return "/telegram";
   if (t.kind === "quiet_flag") return "/telegram";
+  if (t.kind === "hot_seat_find" || t.kind === "hot_seat_report") return "/#hot-seat";
   return null;
 }
 
