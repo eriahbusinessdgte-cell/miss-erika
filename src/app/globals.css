@@ -280,3 +280,8 @@ table.simple th { font-size: 12px; color: var(--muted); font-weight: 650; }
 .sticky-foot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 .sticky-sent { color: var(--ok); font-weight: 650; font-size: 14px; }
 .linklike { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 13px; }
+
+/* Morning scan card */
+.scan-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; border-color: var(--accent-soft); background: linear-gradient(135deg, #fff, var(--accent-soft)); }
+.scan-card h2 { font-size: 16px; margin-bottom: 2px; }
+.scan-card .sub { margin: 0; }

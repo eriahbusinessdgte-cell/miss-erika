@@ -7,9 +7,10 @@ import { useAppData } from "@/components/AppData";
 import { Icon } from "@/components/Icon";
 import { TaskForm, TaskRow } from "@/components/TaskParts";
 import { HotSeatCard } from "@/components/HotSeatCard";
+import { ScanCard } from "@/components/ScanCard";
 import type { Task } from "@/lib/types";
 import { followupState } from "@/lib/ig";
-import { bucketOf, compareTasks, greetingFor, prettyDate, weekdayOf } from "@/lib/core";
+import { bucketOf, compareTasks, greetingFor, prettyDate, todayInTz, weekdayOf } from "@/lib/core";
 
 /** Current time in the chosen time zone, refreshed every 20 seconds. Empty on first paint to avoid a server/browser mismatch. */
 function Clock({ tz }: { tz: string }) {
@@ -80,7 +81,7 @@ export default function Dashboard() {
   const [editing, setEditing] = useState<Task | null | undefined>(undefined);
   if (!settings) return null;
 
-  const rank = (t: Task) => (t.kind === "daily_paste" ? 0 : t.kind === "daily_report" ? 1 : 2);
+  const rank = (t: Task) => (t.kind === "daily_report" ? 0 : 1);
   const open = tasks.filter((t) => t.status !== "Done");
   const todays = open
     .filter((t) => bucketOf(t, today) === "today")
@@ -89,8 +90,8 @@ export default function Dashboard() {
   const overdue = open.filter((t) => bucketOf(t, today) === "overdue").sort(compareTasks);
   const upcoming = open.filter((t) => bucketOf(t, today) === "upcoming").length;
 
-  const paste = tasks.find((t) => t.kind === "daily_paste" && t.ref_date === today);
   const report = tasks.find((t) => t.kind === "daily_report" && t.ref_date === today);
+  const scanDone = !!settings.scan_last_at && todayInTz(settings.timezone, new Date(settings.scan_last_at)) === today;
   const manager = settings.manager_name.split(" ")[0];
 
   const total = todays.length + doneTodayTasks.length;
@@ -126,6 +127,8 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <ScanCard />
+
       <div className="tiles">
         <div className="tile violet"><span className="ico"><Icon name="calendar" size={22} /></span><div><div className="num">{todays.length}</div><div className="cap">Due today</div></div></div>
         <div className="tile red"><span className="ico"><Icon name="alert" size={22} /></span><div><div className="num">{overdue.length}</div><div className="cap">Overdue</div></div></div>
@@ -139,23 +142,13 @@ export default function Dashboard() {
             <h2><Icon name="tasks" /> Today's Tasks</h2>
             <span className={`count ${todays.length ? "danger" : ""}`}>{todays.length} pending</span>
           </div>
-          {total === 0 && !paste ? (
+          {total === 0 ? (
             <p className="empty">Nothing due today. Your daily tasks appear on working days (Monday to Friday).</p>
           ) : (
             <ul className="list">
               {todays.map((t, i) => (
-                <TaskRow key={t.id} task={t} onEdit={setEditing} hero={i === 0 && (t.kind === "daily_paste" || t.kind === "daily_report")} />
+                <TaskRow key={t.id} task={t} onEdit={setEditing} hero={i === 0 && t.kind === "daily_report"} />
               ))}
-              {paste && paste.status !== "Done" && !report && (
-                <li className="task ghost" style={{ gridTemplateColumns: "auto 1fr auto" }}>
-                  <span className="check" aria-hidden="true" style={{ borderStyle: "dashed" }} />
-                  <div>
-                    <span className="task-title">Review & Send Daily Client Report to {manager}</span>
-                    <div className="task-desc">Appears after the first task is ticked.</div>
-                  </div>
-                  <span className="chip">Ready after first task</span>
-                </li>
-              )}
               {doneTodayTasks.map((t) => <TaskRow key={t.id} task={t} onEdit={setEditing} />)}
             </ul>
           )}
@@ -179,7 +172,7 @@ export default function Dashboard() {
             </div>
           </div>
           <ul className="steps">
-            <li><span className={`step-dot ${paste?.status === "Done" ? "on" : ""}`}>{paste?.status === "Done" && <Icon name="check" size={12} />}</span> Paste Telegram messages</li>
+            <li><span className={`step-dot ${scanDone ? "on" : ""}`}>{scanDone && <Icon name="check" size={12} />}</span> Scan &amp; import Telegram messages</li>
             <li><span className={`step-dot ${report?.status === "Done" ? "on" : ""}`}>{report?.status === "Done" && <Icon name="check" size={12} />}</span> Review & send daily report</li>
             <li><span className={`step-dot ${otherToday.length > 0 && otherDone === otherToday.length ? "on" : ""}`}>{otherToday.length > 0 && otherDone === otherToday.length && <Icon name="check" size={12} />}</span> Other tasks today ({otherDone}/{otherToday.length})</li>
           </ul>

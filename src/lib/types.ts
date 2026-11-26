@@ -11,6 +11,8 @@ export type Settings = {
   role_title?: string | null;
   birthday?: string | null;
   avatar_url?: string | null;
+  scan_requested_at?: string | null;
+  scan_last_at?: string | null;
 };
 
 export type Task = {

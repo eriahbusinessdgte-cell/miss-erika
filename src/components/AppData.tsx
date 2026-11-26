@@ -4,7 +4,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createClient } from "@/lib/supabase/client";
 import type { Client, IgLead, Resource, Settings, Task } from "@/lib/types";
 import {
-  DAILY_PASTE_TITLE,
   DAILY_REPORT_TITLE,
   isWorkingDate,
   nextDueDate,
@@ -177,39 +176,19 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         let changed = false;
-        // Task 1: always present on working days.
-        if (isWorkingDate(today) && !tasks.some((t) => t.kind === "daily_paste" && t.ref_date === today)) {
+        // The daily report task is always present on working days.
+        if (isWorkingDate(today) && !tasks.some((t) => t.kind === "daily_report" && t.ref_date === today)) {
           const { error } = await supabase.from("tasks").insert({
-            title: DAILY_PASTE_TITLE,
-            description:
-              "Open each client's own chat and paste the messages they sent while you were away. Tick this when you have finished.",
-            kind: "daily_paste",
+            title: DAILY_REPORT_TITLE,
+            description: "Review the report built from your unread client chats and send it to Michael. It stays pending until you mark it as sent.",
+            kind: "daily_report",
             ref_date: today,
             due_date: today,
             priority: "High",
             recurrence: "None",
           });
-          if (error && error.code !== DUPLICATE) fail("Couldn't create today's first task", error.message);
+          if (error && error.code !== DUPLICATE) fail("Couldn't create the report task", error.message);
           else changed = true;
-        }
-        // Task 2: only after Task 1 for the same day is done.
-        for (const t of tasks) {
-          if (t.kind === "daily_paste" && t.status === "Done" && t.ref_date) {
-            const has = tasks.some((x) => x.kind === "daily_report" && x.ref_date === t.ref_date);
-            if (!has) {
-              const { error } = await supabase.from("tasks").insert({
-                title: DAILY_REPORT_TITLE,
-                description: "Review the compiled report and send it to Michael. It stays pending until you mark it as sent.",
-                kind: "daily_report",
-                ref_date: t.ref_date,
-                due_date: t.ref_date,
-                priority: "High",
-                recurrence: "None",
-              });
-              if (error && error.code !== DUPLICATE) fail("Couldn't create the report task", error.message);
-              else changed = true;
-            }
-          }
         }
         // Weekly Hot Seat tasks: look for participants (Monday), send Michael the report (Wednesday).
         for (const h of hotSeatTasksDue(today)) {

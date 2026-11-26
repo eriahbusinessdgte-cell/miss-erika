@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/core.test.mjs tests/erika.test.mjs tests/report.test.mjs tests/ig.test.mjs tests/kpi.test.mjs tests/backup.test.mjs tests/tgimport.test.mjs tests/inbox.test.mjs tests/hotseat.test.mjs"
+    "test": "node --test tests/core.test.mjs tests/erika.test.mjs tests/report.test.mjs tests/ig.test.mjs tests/kpi.test.mjs tests/backup.test.mjs tests/tgimport.test.mjs tests/inbox.test.mjs tests/hotseat.test.mjs tests/scan.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.6.1",
