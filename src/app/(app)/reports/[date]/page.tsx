@@ -49,7 +49,12 @@ export default function DailyReportPage() {
     // The report covers every chat currently marked unread, not just messages saved today.
     const pv = await supabase.rpc("client_previews");
     if (pv.error) setErr(pv.error.message);
-    const ids = ((pv.data as { client_id: string; unread: boolean }[]) || []).filter((r) => r.unread).map((r) => r.client_id);
+    const unreadNow = ((pv.data as { client_id: string; unread: boolean }[]) || []).filter((r) => r.unread).map((r) => r.client_id);
+    // Opening a chat marks it read, so also keep every chat that got a new client message since the last sent report.
+    const cutoffIso = new Date(start ?? (dayStart.getTime() - 86400000)).toISOString();
+    const fresh = await supabase.from("client_messages").select("client_id").eq("direction", "incoming").gt("sent_at", cutoffIso);
+    if (fresh.error) setErr(fresh.error.message);
+    const ids = Array.from(new Set([...unreadNow, ...(((fresh.data as { client_id: string }[]) || []).map((r) => r.client_id))]));
     let all: ClientMessage[] = [];
     if (ids.length > 0) {
       const m = await supabase.from("client_messages").select("*").in("client_id", ids);
@@ -228,7 +233,7 @@ export default function DailyReportPage() {
       <div className="page-head">
         <div>
           <h1>Daily Client Report</h1>
-          <p className="sub">{prettyDate(date)} · covers every chat marked unread{isSent ? " when it was sent" : ` right now (${unreadIds.length})`}</p>
+          <p className="sub">{prettyDate(date)} · covers every chat marked unread, plus any chat with a new client message since the last sent report{isSent ? " when it was sent" : ` (${unreadIds.length} right now)`}</p>
         </div>
         <div className="field">
           <label htmlFor="rd">Report date</label>
