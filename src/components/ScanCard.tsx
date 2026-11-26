@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAppData } from "@/components/AppData";
 import { formatDateTime } from "@/lib/core";
 import { madridDay } from "@/lib/shift";
-import { scanState } from "@/lib/scan";
+import { scanState, nextScanAt } from "@/lib/scan";
 
 /**
  * Morning Telegram scan. The button only shows while no scan has been done today. Pressing it starts the scan and
@@ -49,11 +49,11 @@ export function ScanCard() {
   return (
     <section className="card scan-card">
       <div>
-        <h2>Telegram scan {st.kind === "waiting" ? "started" : "is running"}</h2>
+        <h2>{st.kind === "waiting" ? "Telegram scan started" : "Telegram scan is on"}</h2>
         <p className="sub">
           {st.kind === "waiting"
             ? "Waiting for the first scan. Keep your Mac on with Chrome open."
-            : `Last updated ${formatDateTime(st.lastAt.toISOString(), tz)}. It checks again about every 3 hours until ${formatDateTime(st.until.toISOString(), tz)}.`}
+            : nextScanAt(st.lastAt).getTime() < st.until.getTime() ? `Last scan finished ${formatDateTime(st.lastAt.toISOString(), tz)}. The next one starts around ${formatDateTime(nextScanAt(st.lastAt).toISOString(), tz)}, then about every 3 hours until ${formatDateTime(st.until.toISOString(), tz)}.` : `Last scan finished ${formatDateTime(st.lastAt.toISOString(), tz)}. That was the last scan for this shift (updates stop at ${formatDateTime(st.until.toISOString(), tz)}).`}
         </p>
       </div>
     </section>

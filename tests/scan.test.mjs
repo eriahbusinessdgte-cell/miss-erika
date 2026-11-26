@@ -22,3 +22,13 @@ test("after the watch ends, scanned today -> done; scanned yesterday -> needed",
   assert.equal(scanState(new Date("2026-11-26T01:00:00Z"), new Date("2026-11-25T20:00:00Z"), new Date("2026-11-25T22:20:00Z"), day).kind, "done");
   assert.equal(scanState(new Date("2026-11-27T01:00:00Z"), new Date("2026-11-25T20:00:00Z"), new Date("2026-11-25T22:20:00Z"), day).kind, "needed");
 });
+
+import { nextScanAt } from "../src/lib/scan.ts";
+test("the next scan starts at the first :29 check at least 2h50 after the last one", () => {
+  // finished 06:59 PST = 14:59 UTC -> due 17:49 UTC -> next check 18:29 UTC = 10:29 PST
+  assert.equal(nextScanAt(new Date("2026-11-26T14:59:00Z")).toISOString(), "2026-11-26T18:29:00.000Z");
+  // finished exactly so that due lands on :29
+  assert.equal(nextScanAt(new Date("2026-11-26T14:39:00Z")).toISOString(), "2026-11-26T17:29:00.000Z");
+  // finished at :20 -> due :10 -> next :29
+  assert.equal(nextScanAt(new Date("2026-11-26T14:20:00Z")).toISOString(), "2026-11-26T17:29:00.000Z");
+});

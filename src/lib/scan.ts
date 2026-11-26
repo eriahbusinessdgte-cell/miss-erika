@@ -30,3 +30,16 @@ export function scanState(now: Date, requestedAt: Date | null, lastAt: Date | nu
   if (lastAt && todayOf(lastAt) === todayOf(now)) return { kind: "done" };
   return { kind: "needed" };
 }
+
+/**
+ * When the hourly check (at 29 minutes past each hour) will next start a scan after the last one finished.
+ * A scan is only due once 2 hours 50 minutes have passed.
+ */
+export function nextScanAt(lastAt: Date): Date {
+  const due = lastAt.getTime() + (2 * 60 + 50) * 60_000;
+  const d = new Date(due);
+  d.setUTCSeconds(0, 0);
+  if (d.getUTCMinutes() > 29 || (d.getUTCMinutes() === 29 && due > d.getTime())) d.setUTCHours(d.getUTCHours() + 1);
+  d.setUTCMinutes(29, 0, 0);
+  return d;
+}
