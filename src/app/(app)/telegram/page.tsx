@@ -148,11 +148,6 @@ export default function TelegramClients() {
                   </span>
                   <span className="client-side">
                     <span className="sub" style={{ fontSize: 12 }}>{c.last_message_at ? `Last message ${formatDateTime(c.last_message_at, tz)}` : "No messages yet"}</span>
-                    <span className="meta" style={{ justifyContent: "flex-end" }}>
-                      <span className="chip">Peace {c.peace_score ?? "–"}</span>
-                      <span className="chip">Life {c.life_score ?? "–"}</span>
-                      <span className="chip">Body {c.body_score ?? "–"}</span>
-                    </span>
                   </span>
                 </Link>
               </li>

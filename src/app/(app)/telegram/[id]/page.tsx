@@ -375,23 +375,6 @@ export default function ClientChat() {
               </div>
             ) : <p className="sub">Analysis appears here after a message is saved.</p>}
           </section>
-          <section className="card">
-            <div className="panel-title">Scores (as the client wrote them)</div>
-            <div className="scores">
-              <div className="score"><b>{client.peace_score ?? "–"}</b><span>Peace</span></div>
-              <div className="score"><b>{client.life_score ?? "–"}</b><span>Life</span></div>
-              <div className="score"><b>{client.body_score ?? "–"}</b><span>Body</span></div>
-            </div>
-            {scores.length > 0 && (
-              <ul className="list" style={{ marginTop: 10 }}>
-                {scores.map((s) => (
-                  <li key={s.id} className="sub" style={{ fontSize: 13 }}>
-                    {formatDateTime(s.recorded_at, tz)}: Peace {s.peace ?? "–"}, Life {s.life ?? "–"}, Body {s.body ?? "–"}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
         </aside>
       </div>
     </>
