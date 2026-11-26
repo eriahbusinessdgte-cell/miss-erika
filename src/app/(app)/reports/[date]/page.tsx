@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppData } from "@/components/AppData";
 import { createClient } from "@/lib/supabase/client";
 import { addDays, formatDateTime, prettyDate, todayInTz, weekdayOf, zonedToUtc } from "@/lib/core";
 import { buildReport, type RMessage } from "@/lib/report";
+import { enqueueAnalysis, TELEGRAM } from "@/lib/analysisQueue";
 import type { Client, ClientMessage, DailyReport } from "@/lib/types";
 
 export default function DailyReportPage() {
@@ -97,6 +98,30 @@ export default function DailyReportPage() {
   const latest = versions.length ? versions[versions.length - 1] : null;
   const isSent = latest?.status === "sent";
   // A sent report is a record of what was unread when it went out, so later reading or new messages never change it.
+  // Messages brought in from Telegram have no analysis yet. Find each unread chat's latest incoming message that needs one.
+  const toAnalyse = useMemo(() => {
+    const out: { client_id: string; id: string }[] = [];
+    for (const cid of unreadIds) {
+      const inc = msgs.filter((m) => m.client_id === cid && m.direction === "incoming").sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime())[0];
+      if (inc && !inc.analysis) out.push({ client_id: cid, id: inc.id });
+    }
+    return out;
+  }, [msgs, unreadIds]);
+  const [analysing, setAnalysing] = useState(false);
+  const autoTried = useRef(false);
+  const alreadySent = versions.length > 0 && versions[versions.length - 1].status === "sent";
+  const analyseAll = useCallback(async () => {
+    setAnalysing(true);
+    for (const t of toAnalyse) await enqueueAnalysis(t.client_id, TELEGRAM, t.id);
+    await load();
+    setAnalysing(false);
+  }, [toAnalyse, load]);
+  useEffect(() => {
+    if (!loaded || alreadySent || autoTried.current || toAnalyse.length === 0) return;
+    autoTried.current = true;
+    void analyseAll();
+  }, [loaded, alreadySent, toAnalyse, analyseAll]);
+
   const shown = isSent && latest ? { clients: latest.client_count, sent: latest.replies_sent, pending: latest.replies_pending, michael: latest.michael_count, unanalysed: 0 } : built.counts;
 
   // The editor shows the saved draft, or the live preview when nothing is saved yet.
@@ -228,7 +253,7 @@ export default function DailyReportPage() {
               {latest?.edited && <span className="chip">Edited</span>}
             </div>
             {built.counts.unanalysed > 0 && !isSent && (
-              <div className="banner error">{built.counts.unanalysed} client message{built.counts.unanalysed === 1 ? " hasn't" : "s haven't"} been analysed yet. Open that client&apos;s chat and press Retry, or press &ldquo;Write a reply to this&rdquo; under their latest message, then rebuild the report.</div>
+              <div className="banner error">{built.counts.unanalysed} client message{built.counts.unanalysed === 1 ? " hasn't" : "s haven't"} been analysed yet. {analysing ? "Analysing them now, this takes a moment…" : <>Press <button className="btn" onClick={() => void analyseAll()}>Analyse them now</button> (or open that client&apos;s chat and press Retry).</>}</div>
             )}
             {isSent && (
               <div className="banner">
