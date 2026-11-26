@@ -46,7 +46,7 @@ export default function LeadPage() {
     const e = l.error || m.error || d.error;
     if (e) setErr(e.message);
     setLead((l.data as IgLead) || null);
-    if (l.data) void supabase.from("ig_leads").update({ last_opened_at: new Date().toISOString(), marked_unread: false }).eq("id", id); // opening the chat marks it read
+    if (l.data) await supabase.from("ig_leads").update({ last_opened_at: new Date().toISOString(), marked_unread: false }).eq("id", id); // opening the chat marks it read
     setNotes((l.data as IgLead | null)?.notes || "");
     setMsgs((m.data as IgMessage[]) || []);
     setDrafts((d.data as IgDraft[]) || []);

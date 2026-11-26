@@ -47,7 +47,7 @@ export default function ClientChat() {
     const e = c.error || m.error || d.error || s.error;
     if (e) setErr(e.message);
     setClient((c.data as Client) || null);
-    if (c.data) void supabase.from("clients").update({ last_opened_at: new Date().toISOString(), marked_unread: false }).eq("id", id); // opening the chat marks it read
+    if (c.data) await supabase.from("clients").update({ last_opened_at: new Date().toISOString(), marked_unread: false }).eq("id", id); // opening the chat marks it read
     setMsgs((m.data as ClientMessage[]) || []);
     setDrafts((d.data as ReplyDraft[]) || []);
     setScores((s.data as ScoreRow[]) || []);
