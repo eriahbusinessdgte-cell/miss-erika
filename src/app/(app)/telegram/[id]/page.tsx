@@ -355,7 +355,7 @@ export default function ClientChat() {
           {aiState === "idle" && !activeDraft && (() => {
             const last = [...msgs].sort((a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()).pop();
             return last?.direction === "incoming" && last.analysis?.reply_needed === false ? (
-              <div className="banner info" role="status">No reply needed from you. This continues Michael&apos;s conversation with them, or it was just a thank-you. <button className="btn" onClick={() => enqueueAnalysis(id, undefined, last.id)}>Write a reply anyway</button></div>
+              <div className="banner info" role="status">No reply needed from you. This continues Michael&apos;s conversation with them, or it was just a thank-you. <button className="btn" onClick={() => enqueueAnalysis(id, undefined, last.id, false, true)}>Write a reply anyway</button></div>
             ) : null;
           })()}
           {aiState !== "idle" && <p className="sub" role="status">{aiState === "queued" ? "Waiting for its turn…" : "Reading the message and writing a draft…"}</p>}

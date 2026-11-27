@@ -155,6 +155,7 @@ export function buildAnalysisPrompt(args: {
   context: PromptMessage[];
   fresh: PromptMessage[];
   retryNote?: string;
+  forceReply?: boolean;
 }): string {
   const line = (m: PromptMessage, max: number) =>
     `[${m.when}] ${m.direction === "incoming" ? "Client" : m.sender === "michael" ? "Michael (personally)" : "Erika"}: ${clip(m.body.replace(/\s+/g, " ").trim(), max)}`;
@@ -169,7 +170,7 @@ ${ctx}
 
 NEW MESSAGES FROM THE CLIENT (analyse and reply to these):
 ${fresh}
-${args.retryNote ? `\nYour previous draft broke Erika's rules (${args.retryNote}). Rewrite the "reply" so it does not, keeping it short and warm.\n` : ""}
+${args.forceReply ? `\nErika asked for a reply to this message even though none is strictly needed. Set "reply_needed" to true and write a short, warm reply in her voice that acknowledges what the client shared and lets them know it was received and passed on to Michael. Do not make promises or give advice.\n` : ""}${args.retryNote ? `\nYour previous draft broke Erika's rules (${args.retryNote}). Rewrite the "reply" so it does not, keeping it short and warm.\n` : ""}
 Return the JSON object now.`;
 }
 
