@@ -89,7 +89,11 @@ export async function POST(req: Request) {
       continue;
     }
     analysis = parsed;
-    if (forceReply && !summaryOnly) parsed.reply_needed = true;
+    if (forceReply && !summaryOnly) {
+      parsed.reply_needed = true;
+      parsed.needs_michael = !!client.needs_michael; // asking for a reply never flags Michael by itself
+      parsed.michael_reason = client.needs_michael ? parsed.michael_reason : "";
+    }
     problems = parsed.reply_needed && !summaryOnly ? [...checkErikaReply(parsed.reply, knownText), ...checkUrls(parsed.reply, allowedUrls)] : [];
     if (badInternalReport(parsed.internal_report)) problems = [...problems, "internal_report must describe the client in the third person for Michael, never mention Michael by name and never give instructions"];
     if (problems.length === 0) break;

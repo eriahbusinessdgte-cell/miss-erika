@@ -74,3 +74,12 @@ test("a note that talks to Erika or about Michael is replaced by the summary", (
   assert.match(r.body, /Ben's back pain has returned\./);
   assert.doesNotMatch(r.body, /let Michael know/);
 });
+test("clients who wrote but need no response get one line, spoken to Michael", () => {
+  const r = run([inc("a", 10, an({ internal_report: "Anita thanks you for your support." })), inc("b", 20, need({}))]);
+  assert.match(r.body, /Also messaged, no response needed from you:\n- Anita Gossow: Anita thanks you for your support\./);
+  assert.match(r.body, /1 client needs your personal response\./);
+});
+test("a stored line that names Michael is turned into 'you'", () => {
+  const r = run([inc("a", 10, an({ internal_report: "", summary: "Anita thanks Michael for his support." }))]);
+  assert.match(r.body, /Anita thanks you for your support\./);
+});

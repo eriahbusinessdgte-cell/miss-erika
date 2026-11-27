@@ -29,6 +29,11 @@ const RANK: Record<string, number> = { URGENT: 0, "MEDIUM PRIORITY": 1, "NOT URG
 // The report goes straight to Michael, so such a note is replaced by the plain summary.
 const talksToErika = (t: string) => /\bmichael\b/i.test(t) || /^you\s+(need|should|must|have to|can|will)\b/i.test(t.trim()) || /\b(pass (this|it|that) on|let (him|michael) know|please tell)\b/i.test(t);
 
+/** Last resort when a stored report line names Michael: speak to him directly instead. */
+const toYou = (t: string) =>
+  t.replace(/\bMichael['’]s\b/g, "your").replace(/\bMichael\b/g, "you").replace(/\bfor (his|your) (support|help|guidance|time|kindness|words|response|reply)\b/gi, "for your $2").replace(/\bhis (support|help|guidance|time|kindness|words|response|reply|blessing|message|remarks)\b/gi, "your $1");
+const lineFor = (a: RAnalysis) => (a.internal_report && !talksToErika(a.internal_report) ? a.internal_report : toYou(a.summary));
+
 export function buildReport(args: {
   prettyDate: string;
   periodStart: number;
@@ -44,6 +49,7 @@ export function buildReport(args: {
   let sent = 0;
   let pending = 0;
   let unanalysed = 0;
+  const fyi: string[] = [];
 
   const byUnread = !!args.unreadIds;
   const unread = new Set(args.unreadIds || []);
@@ -64,7 +70,12 @@ export function buildReport(args: {
       continue;
     }
     const needs = a.needs_michael || c.needs_michael;
-    if (!needs) continue;
+    if (!needs) {
+      // Chats that wrote in but need no response from Michael: one line each so nothing is invisible.
+      const answeredAfter = mine.some((m) => m.direction === "outgoing" && at(m) > newest);
+      if (!answeredAfter) fyi.push(`- ${c.name}: ${lineFor(a)}`);
+      continue;
+    }
     // Once Michael has personally written back after the client's message, there is nothing left for him to do.
     const michaelAnswered = mine.some((m) => m.direction === "outgoing" && m.sender === "michael" && at(m) > newest);
     if (michaelAnswered) continue;
@@ -78,7 +89,7 @@ export function buildReport(args: {
       name: c.name,
       rank: RANK[a.urgency] ?? 1,
       text:
-        `${c.name.toUpperCase()} – ${tags} – ${a.urgency}\n${a.internal_report && !talksToErika(a.internal_report) ? a.internal_report : a.summary}\n` +
+        `${c.name.toUpperCase()} – ${tags} – ${a.urgency}\n${lineFor(a)}\n` +
         `Waiting for you: ${reason}.\n` +
         (replied ? `I've replied to ${first}. They're waiting for you to reach out personally.` : `I haven't replied to ${first} yet. They're waiting for you to reach out personally.`),
     });
@@ -90,6 +101,7 @@ export function buildReport(args: {
   const lines: string[] = [`Hi Michael, here's the update for ${args.prettyDate}.`];
   lines.push(n === 0 ? "No one needs your personal response today." : `${n} client${n === 1 ? " needs" : "s need"} your personal response.`);
   if (n > 0) lines.push("", entries.map((e) => e.text).join("\n\n"));
+  if (fyi.length > 0) lines.push("", "Also messaged, no response needed from you:", ...fyi);
   if (args.quiet && args.quiet.clients.length > 0) {
     lines.push("", `Quiet clients (active clients we haven't heard from since ${args.quiet.since}):`);
     args.quiet.clients.forEach((q) => lines.push(`- ${q.name} (last message ${q.lastHeard})`));
