@@ -85,7 +85,24 @@ const BLOCKED: { re: RegExp; why: string }[] = [
   { re: /as an ai\b|language model/i, why: "sounds robotic" },
 ];
 
-export function checkMichaelReply(text: string, ctx: { stage: string; allowedUrls: string[] }): string[] {
+const words = (t: string) => t.toLowerCase().replace(/https?:\/\/\S+/g, " ").replace(/[^\p{L}\p{N}\s']/gu, " ").split(/\s+/).filter(Boolean);
+
+/** Wording the reply shares with messages already sent in this conversation (any run of 5 words in a row). */
+export function repeatedWording(reply: string, previous: string[]): string | null {
+  const r = words(reply);
+  const seen = new Set<string>();
+  for (const p of previous) {
+    const w = words(p);
+    for (let i = 0; i + 5 <= w.length; i++) seen.add(w.slice(i, i + 5).join(" "));
+  }
+  for (let i = 0; i + 5 <= r.length; i++) {
+    const g = r.slice(i, i + 5).join(" ");
+    if (seen.has(g)) return g;
+  }
+  return null;
+}
+
+export function checkMichaelReply(text: string, ctx: { stage: string; allowedUrls: string[]; previous?: string[] }): string[] {
   const problems: string[] = [];
   const t = text.trim();
   if (!t) problems.push("empty reply");
@@ -96,6 +113,8 @@ export function checkMichaelReply(text: string, ctx: { stage: string; allowedUrl
   const ok = ctx.allowedUrls.map(clean);
   for (const u of urls) if (!ok.includes(clean(u))) problems.push(`link not in Resources: ${clean(u)}`);
   if (t.length > 1400) problems.push("too long");
+  const again = ctx.previous ? repeatedWording(t, ctx.previous) : null;
+  if (again) problems.push(`repeats wording already sent in this conversation ("${again}")`);
   return problems;
 }
 
@@ -124,6 +143,8 @@ export function pickSections(stage: string, latestText: string): string[] {
 
 export const IG_SYSTEM = `You write Instagram DM replies as Michael Watson (Reborn with Michael) for his assistant Erika to copy and send. Follow the DM Sales Bible sections you are given exactly. Write the way Michael talks: casual, warm, human, short. Never sound like a sales script. Do not mention that you are an AI or that Erika is involved.
 
+MAKE IT FLOW LIKE A REAL CONVERSATION. Reply to what they said in their LATEST message, using their own words and details, and move the chat one step forward. Never reuse wording, openers, stock phrases or the same question shape from messages already sent in this conversation (see ALREADY SENT). Do not open with "I hear how heavy...", "Thanks for sharing that" or "I hear you". Do not repeat "a lot of people I work with" or any line that sounds like a script. Do not list back every symptom they mentioned: pick the one thing that matters most to them. Do not use therapy or wellness jargon such as "nervous system", "energetic layer", "holding onto", "resonates". Use plain everyday words, contractions, and 1 to 3 short sentences like a friendly text from a real person. Ask at most one question, and make it a fresh, specific one that follows from what they just told you. Not every message needs to end in a question: sometimes a short warm reaction plus one question is enough.
+
 Return ONE JSON object only (no markdown) with these keys:
 - "summary": 1-2 plain sentences on who this person is and what they said (third person).
 - "door": "dream", "okay_fit" or "wrong_fit"
@@ -144,6 +165,7 @@ export function buildIgPrompt(a: {
   context: IgPromptMsg[];
   fresh: IgPromptMsg[];
   retryNote?: string;
+  sent?: string[];
 }): string {
   const line = (m: IgPromptMsg, max: number) => `[${m.when}] ${m.direction === "incoming" ? a.name : "Michael"}: ${m.body.replace(/\s+/g, " ").trim().slice(0, max)}`;
   return `BIBLE SECTIONS
@@ -156,6 +178,9 @@ LEAD: ${a.name}. Came in as: ${SOURCE_LABEL[a.source]}. Current stage: ${a.stage
 
 EARLIER CONVERSATION (context only)
 ${a.context.length ? a.context.map((m) => line(m, 350)).join("\n") : "(none)"}
+
+ALREADY SENT in this conversation (do NOT reuse its wording, openers or question shape)
+${a.sent && a.sent.length ? a.sent.map((t) => `- ${t.replace(/\s+/g, " ").trim().slice(0, 400)}`).join("\n") : "(nothing yet)"}
 
 NEW MESSAGES FROM THEM (reply to these)
 ${a.fresh.map((m) => line(m, 1500)).join("\n")}

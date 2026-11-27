@@ -60,7 +60,8 @@ export async function POST(req: Request) {
   const resources = (res || []).filter((r: { url: string }) => r.url);
   const allowedUrls = resources.map((r: { url: string }) => r.url);
   const toPrompt = (m: Msg): IgPromptMsg => ({ direction: m.direction, body: m.body, when: formatDateTime(m.sent_at, tz) });
-  const context = msgs.filter((m) => !ids.includes(m.id)).slice(-10).map(toPrompt);
+  const context = msgs.filter((m) => !ids.includes(m.id)).slice(-14).map(toPrompt);
+  const sent = msgs.filter((m) => m.direction === "outgoing").slice(-5).map((m) => m.body);
   const wanted = pickSections(lead.stage, freshText);
   const sections = (kn || []).filter((k: { key: string }) => wanted.includes(k.key)).map((k: { title: string; body: string }) => ({ title: k.title, body: k.body }));
   if (sections.length === 0) return fail("The Sales Bible is missing from the database. Open Instagram → Sales Bible to check.");
@@ -68,19 +69,20 @@ export async function POST(req: Request) {
   let analysis: IgAnalysis | null = null;
   let retryNote: string | undefined;
   let problems: string[] = [];
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const ai = await chatJson(IG_SYSTEM, buildIgPrompt({ name: lead.name, source: lead.source as Source, stage: lead.stage, sections, resources, context, fresh: fresh.map(toPrompt), retryNote }));
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const ai = await chatJson(IG_SYSTEM, buildIgPrompt({ name: lead.name, source: lead.source as Source, stage: lead.stage, sections, resources, context, fresh: fresh.map(toPrompt), retryNote, sent }));
     if (!ai.ok) return fail(ai.error);
     const parsed = parseIgAnalysis(extractJson(ai.text), lead.stage);
     if (!parsed) { retryNote = "the answer was not valid JSON with all required keys"; continue; }
     analysis = parsed;
-    problems = parsed.needs_michael ? [] : checkMichaelReply(parsed.reply, { stage: parsed.stage, allowedUrls });
+    problems = parsed.needs_michael ? [] : checkMichaelReply(parsed.reply, { stage: parsed.stage, allowedUrls, previous: sent });
     if (problems.length === 0) break;
     retryNote = problems.join(", ");
   }
   if (!analysis) return fail("The AI's answer couldn't be read. Press Retry.");
   // If it still breaks the Bible's rules, don't guess: leave it for Michael.
-  if (problems.length > 0) {
+  // A draft that only overlaps earlier wording after several tries is still usable: Erika can tweak it.
+  if (problems.length > 0 && !problems.every((p) => p.startsWith("repeats wording"))) {
     analysis = { ...analysis, reply: "", needs_michael: true, michael_reason: `Couldn't write a safe reply (${problems.join(", ")}). Needs you.` };
   }
 

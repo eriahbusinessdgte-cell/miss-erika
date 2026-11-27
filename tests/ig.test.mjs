@@ -76,3 +76,10 @@ test("AI stage moves one step at a time unless ready to buy", () => {
   assert.equal(d.reply, ""); assert.equal(d.needs_michael, true);
   assert.equal(parseIgAnalysis({ summary: "s" }, "Open"), null);
 });
+import { repeatedWording, checkMichaelReply as chk } from "../src/lib/ig.ts";
+test("flags wording already sent in the conversation", () => {
+  const prev = ["I hear how heavy those years have felt for you. A lot of people I work with come to me with the same kind of digestive stress."];
+  assert.ok(repeatedWording("Thanks, Håkon. A lot of people I work with come to me feeling stuck.", prev));
+  assert.equal(repeatedWording("That sounds exhausting. When did the stomach stuff start for you?", prev), null);
+  assert.ok(chk("A lot of people I work with come to me often.", { stage: "Open", allowedUrls: [], previous: prev }).some((p) => p.startsWith("repeats wording")));
+});
