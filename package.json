@@ -14,7 +14,8 @@
     "heic2any": "^0.0.4",
     "next": "15.5.29",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "three": "0.128.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -13,6 +13,7 @@ const NAV = [
   { href: "/instagram", label: "Instagram Leads", icon: "instagram", stage: "Stage 4" },
   { href: "/tasks", label: "Tasks", icon: "tasks", stage: null },
   { href: "/kpis", label: "KPIs & Weekly Reports", icon: "kpi", stage: "Stage 5" },
+  { href: "/office", label: "Office", icon: "office", stage: null },
   { href: "/resources", label: "Resources & Booking Links", icon: "link", stage: null },
 ];
 
