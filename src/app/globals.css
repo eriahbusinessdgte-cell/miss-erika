@@ -295,3 +295,17 @@ table.simple th { font-size: 12px; color: var(--muted); font-weight: 650; }
 .scan-slim .dot.wait { background: var(--warn); }
 .scan-slim .btn { flex: none; white-space: nowrap; height: 32px; padding: 0 14px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
 .scan-slim .waiting { flex: none; font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; height: 32px; display: inline-flex; align-items: center; }
+.week-ahead { margin-bottom: 16px; }
+.week-grid { display: grid; gap: 10px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.week-day { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.week-name { font-size: 13px; font-weight: 600; }
+.week-date { font-size: 11.5px; color: var(--muted); margin-bottom: 6px; }
+.week-day ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.week-day li { font-size: 12.5px; line-height: 1.35; padding-left: 10px; position: relative; }
+.week-day li::before { content: ""; position: absolute; left: 0; top: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--line); }
+.week-day li.weekly::before { background: var(--warn); }
+.week-day li.task::before { background: #0b0b0b; }
+.week-day li a { color: inherit; text-decoration: none; }
+.week-day li a:hover { text-decoration: underline; }
+@media (max-width: 1100px) { .week-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .week-grid { grid-template-columns: 1fr; } }

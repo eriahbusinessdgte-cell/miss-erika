@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import { TaskForm, TaskRow } from "@/components/TaskParts";
 import { HotSeatCard } from "@/components/HotSeatCard";
 import { ScanCard } from "@/components/ScanCard";
+import { WeekAhead } from "@/components/WeekAhead";
 import { StartWorkCard, FinishWorkButton } from "@/components/ShiftCard";
 import { RespondCard } from "@/components/RespondCard";
 import { madridDay } from "@/lib/shift";
@@ -146,6 +147,8 @@ export default function Dashboard() {
         <RespondCard kind="telegram" />
         <RespondCard kind="instagram" />
       </div>
+
+      <WeekAhead />
 
       <div className="cols">
         <section className="card">
