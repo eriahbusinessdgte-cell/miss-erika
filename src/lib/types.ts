@@ -61,6 +61,7 @@ export type Client = {
   body_score: number | null;
   followup_status: string;
   needs_reply: boolean;
+  reply_dismissed_at?: string | null;
   needs_michael: boolean;
   michael_reason: string;
   michael_flagged_at: string | null;

@@ -4,6 +4,10 @@ import * as THREE from "three";
 import { useEffect, useRef } from "react";
 
 export type OfficeAgent = { id: string; name: string; working: boolean };
+export type Bubble = { text: string; at: number };
+
+// A soft accent colour for each desk (chair and robot trim).
+const ACCENTS = [0x4ecdc4, 0xff8fa3, 0xffc857, 0x9b8cff, 0x6ee7a8, 0x6bb5ff];
 
 // Desk slots in order: three at the back row, then three at the front row.
 const SLOTS: [number, number][] = [[-5.2, -2.4], [-1.6, -2.4], [2.0, -2.4], [-5.2, 1.6], [-1.6, 1.6], [2.0, 1.6]];
@@ -29,7 +33,7 @@ function box(w: number, h: number, d: number, mat: unknown, x = 0, y = 0, z = 0)
 }
 
 /** The 3D office. Draws one desk per agent; working agents get a robot and a green light. Labels float over each desk. */
-export default function OfficeScene({ agents }: { agents: OfficeAgent[] }) {
+export default function OfficeScene({ agents, bubbles, onSelect }: { agents: OfficeAgent[]; bubbles: Record<string, Bubble>; onSelect: (id: string) => void }) {
   const mount = useRef<HTMLDivElement>(null);
   const labelEls = useRef<(HTMLDivElement | null)[]>([]);
   const api = useRef<{ setAgents: (a: OfficeAgent[]) => void } | null>(null);
@@ -39,8 +43,8 @@ export default function OfficeScene({ agents }: { agents: OfficeAgent[] }) {
   useEffect(() => {
     const el = mount.current!;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x14171c);
-    scene.fog = new THREE.Fog(0x14171c, 18, 34);
+    scene.background = new THREE.Color(0x9fb4de);
+    scene.fog = new THREE.Fog(0x9fb4de, 22, 40);
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
     camera.position.set(0, 7.5, 12.5);
     camera.lookAt(0, 0.6, -0.8);
@@ -52,36 +56,44 @@ export default function OfficeScene({ agents }: { agents: OfficeAgent[] }) {
     renderer.domElement.style.display = "block";
 
     // Lights: one directional light with soft shadows, hemisphere fill.
-    scene.add(new THREE.HemisphereLight(0xcfd8e6, 0x2a2d33, 0.65));
-    const sun = new THREE.DirectionalLight(0xfff1dc, 0.9);
+    scene.add(new THREE.HemisphereLight(0xf2f5ff, 0xcdb9a0, 0.68));
+    const sun = new THREE.DirectionalLight(0xffe9cc, 0.6);
     sun.position.set(6, 12, 8);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 10, bottom: -10, near: 1, far: 40 });
-    sun.shadow.radius = 4; sun.shadow.bias = -0.0004;
+    sun.shadow.radius = 5; sun.shadow.bias = -0.0004;
     scene.add(sun);
 
-    const concrete = noiseTexture("#8a8d90", "#5d6064", 512, 2500); concrete.repeat.set(5, 4);
-    const woodTex = noiseTexture("#a9774a", "#5b3a1e", 256, 600, "#6b4526");
+    const concrete = noiseTexture("#d9c8ad", "#a08a6c", 512, 2200); concrete.repeat.set(5, 4);
+    const woodTex = noiseTexture("#d9a066", "#8a5a30", 256, 500, "#9a6a3a");
     const mats = {
       floor: new THREE.MeshStandardMaterial({ map: concrete, roughness: 0.92 }),
       wood: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.6 }),
-      metal: new THREE.MeshStandardMaterial({ color: 0x2b2e33, metalness: 0.8, roughness: 0.4 }),
-      steel: new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.9, roughness: 0.35 }),
-      glass: new THREE.MeshPhysicalMaterial({ color: 0xaed6ee, transparent: true, opacity: 0.18, roughness: 0.05, metalness: 0.1 }),
-      screen: new THREE.MeshStandardMaterial({ color: 0x0b1620, emissive: 0x1d6fa8, emissiveIntensity: 0.55, roughness: 0.3 }),
-      chair: new THREE.MeshStandardMaterial({ color: 0x3a3f47, roughness: 0.8 }),
-      robot: new THREE.MeshStandardMaterial({ color: 0xf4f6f8, roughness: 0.35, metalness: 0.1 }),
-      visor: new THREE.MeshStandardMaterial({ color: 0x0a0c10, roughness: 0.15, metalness: 0.6 }),
-      sofa: new THREE.MeshStandardMaterial({ color: 0x4a5a6b, roughness: 0.9 }),
+      metal: new THREE.MeshStandardMaterial({ color: 0x3a4152, metalness: 0.7, roughness: 0.45 }),
+      steel: new THREE.MeshStandardMaterial({ color: 0x7f97ad, metalness: 0.8, roughness: 0.4 }),
+      glass: new THREE.MeshPhysicalMaterial({ color: 0xbfe6f2, transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.1 }),
+      screen: new THREE.MeshStandardMaterial({ color: 0x12303d, emissive: 0x3fb8c9, emissiveIntensity: 0.6, roughness: 0.3 }),
+            robot: new THREE.MeshStandardMaterial({ color: 0xf4f6f8, roughness: 0.35, metalness: 0.1 }),
+      visor: new THREE.MeshStandardMaterial({ color: 0x1b2433, roughness: 0.15, metalness: 0.6 }),
+      sofa: new THREE.MeshStandardMaterial({ color: 0xf09a9a, roughness: 0.9 }),
+      rug: new THREE.MeshStandardMaterial({ color: 0x62c6bb, roughness: 1 }),
+      wallL: new THREE.MeshStandardMaterial({ color: 0xf0c4b0, roughness: 1 }),
+      wallR: new THREE.MeshStandardMaterial({ color: 0xc9b9ea, roughness: 1 }),
       pot: new THREE.MeshStandardMaterial({ color: 0x6b4a3a, roughness: 0.8 }),
-      leaf: new THREE.MeshStandardMaterial({ color: 0x2f6b3a, roughness: 0.8 }),
+      leaf: new THREE.MeshStandardMaterial({ color: 0x4faf6a, roughness: 0.8 }),
     };
 
     // Floor
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(26, 18), mats.floor);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
     scene.add(floor);
+    const sideL = box(0.2, 4.2, 14, mats.wallL, -12.9, 2.1, -1.5), sideR = box(0.2, 4.2, 14, mats.wallR, 12.9, 2.1, -1.5);
+    sideL.castShadow = sideR.castShadow = false;
+    scene.add(sideL, sideR);
+    const rug = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.02, 48), mats.rug);
+    rug.position.set(6.2, 0.011, -2.6); rug.receiveShadow = true;
+    scene.add(rug);
 
     // Glass wall at the back with steel frames
     const wall = new THREE.Group();
@@ -117,7 +129,9 @@ export default function OfficeScene({ agents }: { agents: OfficeAgent[] }) {
     let current: OfficeAgent[] = [];
     const disposables: { dispose: () => void }[] = [];
 
-    function buildDesk(a: OfficeAgent, x: number, z: number) {
+    function buildDesk(a: OfficeAgent, x: number, z: number, i: number) {
+      const accent = new THREE.MeshStandardMaterial({ color: ACCENTS[i % ACCENTS.length], roughness: 0.7 });
+      disposables.push(accent);
       const g = new THREE.Group();
       g.position.set(x, 0, z);
       g.add(box(2.6, 0.08, 1.2, mats.wood, 0, 0.78, 0));
@@ -127,9 +141,9 @@ export default function OfficeScene({ agents }: { agents: OfficeAgent[] }) {
       const scr = box(0.88, 0.48, 0.02, mats.screen, 0, 1.4, 0.115); scr.castShadow = false;
       g.add(scr);
       // Chair on the -z side, facing the camera
-      g.add(box(0.7, 0.08, 0.7, mats.chair, 0, 0.5, -1.05), box(0.7, 0.75, 0.08, mats.chair, 0, 0.9, -1.4), box(0.06, 0.5, 0.06, mats.metal, 0, 0.25, -1.05), box(0.6, 0.05, 0.05, mats.metal, 0, 0.03, -1.05));
+      g.add(box(0.7, 0.08, 0.7, accent, 0, 0.5, -1.05), box(0.7, 0.75, 0.08, accent, 0, 0.9, -1.4), box(0.06, 0.5, 0.06, mats.metal, 0, 0.25, -1.05), box(0.6, 0.05, 0.05, mats.metal, 0, 0.03, -1.05));
       // Status light
-      const lightMat = new THREE.MeshStandardMaterial({ color: a.working ? 0x35d36b : 0x7b8087, emissive: a.working ? 0x35d36b : 0x000000, emissiveIntensity: a.working ? 1.1 : 0 });
+      const lightMat = new THREE.MeshStandardMaterial({ color: a.working ? 0x35d36b : 0x9aa3ad, emissive: a.working ? 0x35d36b : 0x000000, emissiveIntensity: a.working ? 1.1 : 0 });
       disposables.push(lightMat);
       const light = new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 10), lightMat);
       light.position.set(1.05, 0.86, -0.4);
@@ -140,7 +154,8 @@ export default function OfficeScene({ agents }: { agents: OfficeAgent[] }) {
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 24, 18), mats.robot); head.position.y = 0.78;
         const visor = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.1, 0.12), mats.visor); visor.position.set(0, 0.8, 0.2);
         for (const m of [body, head, visor]) m.castShadow = true;
-        r.add(body, head, visor);
+        const band = new THREE.Mesh(new THREE.CylinderGeometry(0.265, 0.27, 0.08, 20), accent); band.position.y = 0.3;
+        r.add(body, head, visor, band);
         for (const sx of [-0.3, 0.3]) { const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 10), mats.robot); arm.position.set(sx, 0.4, 0.1); arm.rotation.x = 0.9; arm.castShadow = true; r.add(arm); }
         r.position.set(0, 0.58, -1.05);
         r.userData.phase = x;
@@ -154,7 +169,7 @@ export default function OfficeScene({ agents }: { agents: OfficeAgent[] }) {
       while (deskGroup.children.length) deskGroup.remove(deskGroup.children[0]);
       disposables.splice(0).forEach((d) => d.dispose());
       robots = [];
-      current.forEach((a, i) => buildDesk(a, SLOTS[i][0], SLOTS[i][1]));
+      current.forEach((a, i) => buildDesk(a, SLOTS[i][0], SLOTS[i][1], i));
     }
     api.current = { setAgents };
     setAgents(latest.current);
@@ -209,11 +224,14 @@ export default function OfficeScene({ agents }: { agents: OfficeAgent[] }) {
   useEffect(() => { api.current?.setAgents(agents); }, [agents]);
 
   return (
-    <div className="office-scene" ref={mount} role="img" aria-label="3D office with one desk per agent">
+    <div className="office-scene" ref={mount} role="group" aria-label="Office with one desk per agent">
       {agents.slice(0, MAX_AGENTS).map((a, i) => (
         <div key={a.id} className="office-label" ref={(n) => { labelEls.current[i] = n; }}>
-          <b>{a.name}</b>
-          <span className={a.working ? "on" : "off"}>{a.working ? "Working" : "Stopped"}</span>
+          {bubbles[a.id] && <div key={bubbles[a.id].at} className="office-bubble">{bubbles[a.id].text}</div>}
+          <button type="button" className="office-tag" onClick={() => onSelect(a.id)} aria-label={`${a.name}, ${a.working ? "Working" : "Stopped"}. Open profile`}>
+            <b>{a.name}</b>
+            <span className={a.working ? "on" : "off"}>{a.working ? "Working" : "Stopped"}</span>
+          </button>
         </div>
       ))}
     </div>

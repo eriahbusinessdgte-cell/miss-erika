@@ -7,7 +7,7 @@ import { useAppData } from "@/components/AppData";
 import { Icon } from "@/components/Icon";
 import { TaskForm, TaskRow } from "@/components/TaskParts";
 import { HotSeatCard } from "@/components/HotSeatCard";
-import { ScanCard } from "@/components/ScanCard";
+import { OfficeCard } from "@/components/OfficeCard";
 import { WeekAhead } from "@/components/WeekAhead";
 import { StartWorkCard, FinishWorkButton } from "@/components/ShiftCard";
 import { RespondCard } from "@/components/RespondCard";
@@ -132,7 +132,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {!shiftOn ? <StartWorkCard /> : <ScanCard />}
+      {!shiftOn && <StartWorkCard />}
+      <OfficeCard />
 
       {shiftOn && (
       <>

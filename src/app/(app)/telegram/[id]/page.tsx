@@ -233,7 +233,7 @@ export default function ClientChat() {
   /** This chat needs no answer (for example Michael is already on a call with them). Clears the reply and Michael flags; a new message from them brings it back. */
   async function noResponseNeeded() {
     await supabase.from("reply_drafts").update({ status: "superseded" }).eq("client_id", id).in("status", ["draft", "copied"]);
-    await supabase.from("clients").update({ needs_reply: false, needs_michael: false, michael_resolved_at: new Date().toISOString(), marked_unread: false }).eq("id", id);
+    await supabase.from("clients").update({ needs_reply: false, needs_michael: false, michael_resolved_at: new Date().toISOString(), marked_unread: false, reply_dismissed_at: new Date().toISOString() }).eq("id", id);
     await load();
     reloadClients();
   }

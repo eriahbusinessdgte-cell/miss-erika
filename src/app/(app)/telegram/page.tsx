@@ -51,7 +51,7 @@ export default function TelegramClients() {
   async function noResponse(id: string) {
     const db = createClient();
     await db.from("reply_drafts").update({ status: "superseded" }).eq("client_id", id).in("status", ["draft", "copied"]);
-    await db.from("clients").update({ needs_reply: false, needs_michael: false, michael_resolved_at: new Date().toISOString(), marked_unread: false }).eq("id", id);
+    await db.from("clients").update({ needs_reply: false, needs_michael: false, michael_resolved_at: new Date().toISOString(), marked_unread: false, reply_dismissed_at: new Date().toISOString() }).eq("id", id);
     setMenu(null);
     await reloadClients();
     reloadPreviews();
