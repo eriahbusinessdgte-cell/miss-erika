@@ -96,7 +96,7 @@ export default function DailyReportPage() {
   }, [date, tz, clients, dismissed, settings?.quiet_inactive_days]);
 
   const built = useMemo(() => {
-    const rm: RMessage[] = msgs.map((m) => ({ client_id: m.client_id, direction: m.direction, sender: m.sender, created_at: new Date(m.created_at).getTime(), sent_at: new Date(m.sent_at).getTime(), analysis: m.analysis }));
+    const rm: RMessage[] = msgs.map((m) => ({ client_id: m.client_id, direction: m.direction, sender: m.sender, body: m.body, created_at: new Date(m.created_at).getTime(), sent_at: new Date(m.sent_at).getTime(), analysis: m.analysis }));
     return buildReport({ prettyDate: prettyDate(date), periodStart, periodEnd, clients, messages: rm, unreadIds, quiet: quietList ? { since: quietList.since, clients: quietList.list } : undefined });
   }, [msgs, clients, date, periodStart, periodEnd, quietList, unreadIds]);
 

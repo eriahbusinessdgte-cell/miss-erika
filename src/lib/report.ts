@@ -15,6 +15,7 @@ export type RMessage = {
   client_id: string;
   direction: "incoming" | "outgoing";
   sender?: "erika" | "michael";
+  body?: string;
   created_at: number; // when it was pasted / saved (ms)
   sent_at: number; // when the client originally sent it (ms)
   analysis: RAnalysis | null;
@@ -33,6 +34,9 @@ const talksToErika = (t: string) => /\bmichael\b/i.test(t) || /^you\s+(need|shou
 const toYou = (t: string) =>
   t.replace(/\bMichael['’]s\b/g, "your").replace(/\bMichael\b/g, "you").replace(/\bfor (his|your) (support|help|guidance|time|kindness|words|response|reply)\b/gi, "for your $2").replace(/\bhis (support|help|guidance|time|kindness|words|response|reply|blessing|message|remarks)\b/gi, "your $1");
 const lineFor = (a: RAnalysis) => (a.internal_report && !talksToErika(a.internal_report) ? a.internal_report : toYou(a.summary));
+
+/** True when Erika's reply tells the client that Michael will personally answer or see it. */
+export const promisesMichael = (t: string) => /\bmichael\b[^.!?]*\b(respond|reply|get back|back to you|personally|will see|sees this)\b/i.test(t);
 
 export function buildReport(args: {
   prettyDate: string;
@@ -69,7 +73,9 @@ export function buildReport(args: {
       unanalysed++;
       continue;
     }
-    const needs = a.needs_michael || c.needs_michael;
+    // If Erika already told the client that Michael will answer personally, he owes them a response.
+    const promised = mine.some((m) => m.direction === "outgoing" && m.sender !== "michael" && at(m) > newest && promisesMichael(m.body || ""));
+    const needs = a.needs_michael || c.needs_michael || promised;
     if (!needs) {
       // Chats that wrote in but need no response from Michael: one line each so nothing is invisible.
       const answeredAfter = mine.some((m) => m.direction === "outgoing" && at(m) > newest);
@@ -84,7 +90,7 @@ export function buildReport(args: {
     else pending++;
     const first = c.name.split(/\s+/)[0];
     const tags = a.tags.length ? a.tags.join(" – ") : "CLIENT UPDATE";
-    const reason = a.michael_reason || c.michael_reason || "Needs your personal response";
+    const reason = a.michael_reason || c.michael_reason || (promised ? `I told ${first} you would respond personally` : "Needs your personal response");
     entries.push({
       name: c.name,
       rank: RANK[a.urgency] ?? 1,

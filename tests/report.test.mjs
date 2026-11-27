@@ -83,3 +83,9 @@ test("a stored line that names Michael is turned into 'you'", () => {
   const r = run([inc("a", 10, an({ internal_report: "", summary: "Anita thanks Michael for his support." }))]);
   assert.match(r.body, /Anita thanks you for your support\./);
 });
+test("Erika told the client Michael will respond personally -> listed as waiting for him, with her reply noted", () => {
+  const r = run([inc("a", 10, an({ internal_report: "Anita thanks you for your support." })), { ...out("a", 30), body: "Hi Anita, thanks for sharing. Michael will respond to you personally." }]);
+  assert.match(r.body, /1 client needs your personal response\./);
+  assert.match(r.body, /Waiting for you: I told Anita you would respond personally\./);
+  assert.match(r.body, /I've replied to Anita\./);
+});
