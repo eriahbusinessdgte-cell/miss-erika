@@ -43,6 +43,20 @@ export default function OfficePage() {
 
   const agent = rows.find((r) => r.id === AGENT_ID);
 
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<string | null>(null);
+
+  async function saveName(id: string) {
+    const name = (drafts[id] ?? "").trim();
+    if (!name) return;
+    const { error } = await supabase.from("agent_status").update({ name }).eq("id", id);
+    if (error) return setErr(error.message);
+    setErr(null);
+    setDrafts((d) => { const next = { ...d }; delete next[id]; return next; });
+    setSaved(`Saved name "${name}".`);
+    load();
+  }
+
   async function send(e: React.FormEvent) {
     e.preventDefault();
     const command = text.trim();
@@ -64,6 +78,18 @@ export default function OfficePage() {
       </div>
       {err && <div className="banner error">{err}</div>}
       <OfficeScene agents={agents} />
+      <section className="card">
+        <h2>Names</h2>
+        <p className="sub">Give each agent a name. It shows above its desk.</p>
+        {rows.map((r) => (
+          <form key={r.id} className="row" onSubmit={(e) => { e.preventDefault(); saveName(r.id); }}>
+            <label className="sr-only" htmlFor={`name-${r.id}`}>Name for {r.name}</label>
+            <input id={`name-${r.id}`} type="text" value={drafts[r.id] ?? r.name} onChange={(e) => setDrafts((d) => ({ ...d, [r.id]: e.target.value }))} />
+            <button className="btn" type="submit" disabled={!(drafts[r.id] ?? "").trim() || (drafts[r.id] ?? "").trim() === r.name}>Save name</button>
+          </form>
+        ))}
+        {saved && <p className="sub">{saved}</p>}
+      </section>
       <section className="card office-chat">
         <form onSubmit={send} className="row">
           <label className="sr-only" htmlFor="office-cmd">Message to the agent</label>
