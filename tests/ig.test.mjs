@@ -108,3 +108,14 @@ test("three options and the conversation panel are parsed; stage can move two st
   assert.equal(parseIgAnalysis({ summary: "s", needs_michael: true, options: [{ reply: "x" }] }, "Open").options.length, 0);
   assert.equal(parseIgAnalysis({ summary: "s", options: [] }, "Open"), null);
 });
+import { parseConversation } from "../src/lib/ig.ts";
+test("a pasted conversation becomes lead/Michael pairs", () => {
+  const t = "Lead: I'm anxious.\nIt's been years.\nMichael: That sounds exhausting.\nMichael: What's been hardest?\nLead: Sleep.\nMichael: Tell me more.";
+  const p = parseConversation(t);
+  assert.equal(p.length, 2);
+  assert.equal(p[0].lead, "I'm anxious.\nIt's been years.");
+  assert.equal(p[0].michael, "That sounds exhausting.\nWhat's been hardest?");
+  assert.deepEqual(p[1], { lead: "Sleep.", michael: "Tell me more." });
+  assert.deepEqual(parseConversation("Michael: Hello there"), [{ lead: "", michael: "Hello there" }]);
+  assert.deepEqual(parseConversation("no labels here"), []);
+});

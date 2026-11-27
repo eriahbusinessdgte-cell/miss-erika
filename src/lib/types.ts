@@ -12,6 +12,7 @@ export type Settings = {
   birthday?: string | null;
   avatar_url?: string | null;
   scan_requested_at?: string | null;
+  ig_auto_paused?: boolean;
   scan_last_at?: string | null;
   shift_started_at?: string | null;
   shift_ended_at?: string | null;

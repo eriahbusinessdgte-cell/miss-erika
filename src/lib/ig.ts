@@ -218,11 +218,11 @@ export const EXAMPLE_KINDS: Record<string, string> = {
 };
 
 /** Approved examples saved by Erika and Michael. Style and structure only, never to copy. */
-export function examplesBlock(ex?: { kind: string; body: string }[]): string {
+export function examplesBlock(ex?: { kind: string; body: string; note?: string }[]): string {
   if (!ex || ex.length === 0) return "";
-  const clip = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 700);
-  return `APPROVED EXAMPLES (messages Erika and Michael approved; learn the tone, structure and reasoning, never copy the wording)
-${ex.map((e, i) => `${i + 1}. [${EXAMPLE_KINDS[e.kind] || e.kind}] ${clip(e.body)}`).join("\n")}
+  const clip = (t: string, n = 700) => t.replace(/\s+/g, " ").trim().slice(0, n);
+  return `APPROVED EXAMPLES (real messages Michael and Erika approved; learn how Michael speaks to leads, his tone, structure, timing and reasoning, never copy the wording)
+${ex.map((e, i) => `${i + 1}. [${EXAMPLE_KINDS[e.kind] || e.kind}] ${e.note ? `They wrote: ${clip(e.note, 450)}\n   Michael replied: ` : ""}${clip(e.body)}`).join("\n")}
 
 `;
 }
@@ -242,7 +242,7 @@ export function buildIgPrompt(a: {
   theirCount?: number;
   ourCount?: number;
   edits?: LearnedEdit[];
-  examples?: { kind: string; body: string }[];
+  examples?: { kind: string; body: string; note?: string }[];
   instruction?: string;
 }): string {
   const line = (m: IgPromptMsg, max: number) => `[${m.when}] ${m.direction === "incoming" ? a.name : "Michael"}: ${m.body.replace(/\s+/g, " ").trim().slice(0, max)}`;
@@ -324,4 +324,29 @@ export function parseIgAnalysis(raw: unknown, currentStage: string): IgAnalysis 
     ? { step: s(i.step, 60), experiencing: list(i.experiencing, 4, 160), wants: list(i.wants, 3, 160), readiness: s(i.readiness, 240), next_action: s(i.next_action, 240), warning: s(i.warning, 240) }
     : null;
   return { summary, door, stage, ready_to_buy: ready, needs_michael: needs, michael_reason: needs ? s(o.michael_reason, 300) || "Not sure how to answer. Needs you." : "", reply: options[0]?.reply || "", options, intel };
+}
+
+/**
+ * Turns a pasted conversation into (lead message, Michael reply) pairs. Lines start with "Michael:" for Michael
+ * (or "Me:" / "Erika:") and "Lead:" (or "Them:" / "They:" / "Client:") for the other person. Text on the lines
+ * after a label belongs to that speaker until the next label. Consecutive messages by the same speaker are merged.
+ */
+export function parseConversation(text: string): { lead: string; michael: string }[] {
+  const re = /^\s*(michael|me|erika|lead|them|they|client|she|he)\s*[:\-–]\s*(.*)$/i;
+  const turns: { who: "m" | "l"; text: string }[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(re);
+    if (m) {
+      const who = /^(michael|me|erika)$/i.test(m[1]) ? "m" : "l";
+      if (turns.length && turns[turns.length - 1].who === who) turns[turns.length - 1].text += "\n" + m[2];
+      else turns.push({ who, text: m[2] });
+    } else if (turns.length && line.trim()) turns[turns.length - 1].text += "\n" + line.trim();
+  }
+  const out: { lead: string; michael: string }[] = [];
+  for (let i = 0; i < turns.length; i++) {
+    if (turns[i].who !== "m" || !turns[i].text.trim()) continue;
+    const prev = turns[i - 1];
+    out.push({ lead: prev && prev.who === "l" ? prev.text.trim() : "", michael: turns[i].text.trim() });
+  }
+  return out;
 }

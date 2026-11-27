@@ -13,7 +13,7 @@ import { RowMenu } from "@/components/RowMenu";
 import { previewLine } from "@/lib/inbox";
 
 export default function InstagramLeads() {
-  const { leads, settings, reloadLeads } = useAppData();
+  const { leads, settings, reloadLeads, saveSettings } = useAppData();
   const [previews, reloadPreviews] = usePreviews("lead", leads);
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   async function toggleRead(id: string) {
@@ -168,7 +168,16 @@ export default function InstagramLeads() {
         <div className="modal-back" role="dialog" aria-modal="true" aria-label="Add lead">
           <form className="modal" onSubmit={addLead}>
             <h2>Add lead</h2>
-            {err && <div className="banner error" role="alert">{err}</div>}
+            {settings?.ig_auto_paused ? (
+        <div className="banner info" role="status">
+          <b>Instagram auto-replies are paused.</b> Nothing is drafted by itself. Today is for teaching the app how Michael speaks to leads.{" "}
+          <Link className="btn" href="/instagram/examples">Teach the app</Link>{" "}
+          <button className="btn" onClick={() => saveSettings({ ig_auto_paused: false })}>Resume auto-replies</button>
+        </div>
+      ) : (
+        <p className="sub"><button className="btn" onClick={() => saveSettings({ ig_auto_paused: true })}>Pause Instagram auto-replies</button></p>
+      )}
+      {err && <div className="banner error" role="alert">{err}</div>}
             <div className="field">
               <label>Is this lead new or already chatting?</label>
               <label className="checkrow"><input type="radio" name="a-kind" checked={f.kind === "new"} onChange={() => setF({ ...f, kind: "new" })} /> Brand new. Write the opening message.</label>

@@ -68,8 +68,8 @@ export async function POST(req: Request) {
   const { data: edited } = await supabase.from("ig_drafts").select("body,original_body").eq("kind", "reply").eq("edited", true).not("original_body", "is", null).in("status", ["draft", "copied", "sent"]).order("created_at", { ascending: false }).limit(6);
   const edits: LearnedEdit[] = ((edited || []) as { body: string; original_body: string }[]).filter((e) => e.body.trim() !== e.original_body.trim()).slice(0, 4).map((e) => ({ ai: e.original_body, final: e.body }));
   // Approved examples saved by Erika and Michael (only ones marked approved).
-  const { data: exRows } = await supabase.from("ig_examples").select("kind,body").eq("approved", true).order("created_at", { ascending: false }).limit(5);
-  const examples = ((exRows || []) as { kind: string; body: string }[]);
+  const { data: exRows } = await supabase.from("ig_examples").select("kind,body,note").eq("approved", true).order("created_at", { ascending: false }).limit(8);
+  const examples = ((exRows || []) as { kind: string; body: string; note?: string }[]);
   const sent = msgs.filter((m) => m.direction === "outgoing").slice(-5).map((m) => m.body);
   const wanted = pickSections(lead.stage, freshText);
   const sections = (kn || []).filter((k: { key: string }) => wanted.includes(k.key)).map((k: { title: string; body: string }) => ({ title: k.title, body: k.body }));

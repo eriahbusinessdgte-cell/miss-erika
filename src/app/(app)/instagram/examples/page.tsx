@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { EXAMPLE_KINDS } from "@/lib/ig";
+import { EXAMPLE_KINDS, parseConversation } from "@/lib/ig";
 
 type Example = { id: string; kind: string; title: string; body: string; note: string; approved: boolean; created_at: string };
 
@@ -16,6 +16,9 @@ export default function ExamplesPage() {
   const [editKind, setEditKind] = useState("approved_edit");
   const [kind, setKind] = useState("michael_message");
   const [body, setBody] = useState("");
+  const [convo, setConvo] = useState("");
+  const [taught, setTaught] = useState<string | null>(null);
+  const pairs = useMemo(() => parseConversation(convo), [convo]);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from("ig_examples").select("*").order("created_at", { ascending: false });
@@ -31,6 +34,15 @@ export default function ExamplesPage() {
     const { error } = await supabase.from("ig_examples").insert({ kind, body: body.trim(), approved: true });
     if (error) return setErr(error.message);
     setBody("");
+    await load();
+  }
+  async function teach() {
+    if (pairs.length === 0) return;
+    setErr(null);
+    const { error } = await supabase.from("ig_examples").insert(pairs.map((p) => ({ kind: "michael_message", body: p.michael, note: p.lead, approved: true })));
+    if (error) return setErr(error.message);
+    setTaught(`Saved ${pairs.length} of Michael's replies. The writer will learn from them.`);
+    setConvo("");
     await load();
   }
   async function save(r: Example) {
@@ -59,13 +71,31 @@ export default function ExamplesPage() {
         <div>
           <p className="sub"><Link href="/instagram">← Instagram leads</Link></p>
           <h1>Approved examples</h1>
-          <p className="sub">Messages you and Michael like. The writer learns their tone and structure from approved ones (it uses the latest five) and never copies the wording. Nothing is added automatically: you save each one yourself. The Sales Bible stays the main source of truth.</p>
+          <p className="sub">Messages you and Michael like. The writer learns their tone and structure from approved ones (it uses the latest eight) and never copies the wording. Nothing is added automatically: you save each one yourself. The Sales Bible stays the main source of truth.</p>
         </div>
       </div>
       {err && <div className="banner error" role="alert">{err}</div>}
 
       <section className="card" style={{ marginBottom: 16 }}>
-        <div className="card-head"><h2>Add an example</h2></div>
+        <div className="card-head"><h2>Teach the app from a real conversation</h2></div>
+        <p className="sub" style={{ marginBottom: 8 }}>Paste a conversation between Michael and a lead. Start each message with <b>Lead:</b> or <b>Michael:</b>. Each of Michael&apos;s replies is saved together with what the lead had just written, so the app learns how he answers real messages. Only paste conversations Michael actually had.</p>
+        {taught && <div className="banner info" role="status">{taught}</div>}
+        <textarea aria-label="Conversation" rows={10} value={convo} onChange={(e) => { setConvo(e.target.value); setTaught(null); }} placeholder={"Lead: I've struggled with anxiety for years…\nMichael: It can be exhausting when…\nLead: …"} style={{ width: "100%" }} />
+        {convo.trim() && (
+          <p className="sub" style={{ marginTop: 8 }}>{pairs.length === 0 ? "No Michael replies found yet. Check that each line starts with Lead: or Michael:." : `Found ${pairs.length} reply${pairs.length === 1 ? "" : "ies"} from Michael to save.`}</p>
+        )}
+        {pairs.slice(0, 3).map((p, i) => (
+          <div key={i} style={{ background: "var(--bg)", padding: 10, borderRadius: 10, margin: "6px 0" }}>
+            {p.lead && <p className="sub" style={{ margin: 0 }}>Lead: {p.lead.slice(0, 160)}{p.lead.length > 160 ? "…" : ""}</p>}
+            <p style={{ margin: 0 }}>Michael: {p.michael.slice(0, 220)}{p.michael.length > 220 ? "…" : ""}</p>
+          </div>
+        ))}
+        {pairs.length > 3 && <p className="sub">…and {pairs.length - 3} more.</p>}
+        <div style={{ marginTop: 8 }}><button className="btn primary" disabled={pairs.length === 0} onClick={teach}>{pairs.length > 0 ? `Save ${pairs.length} as approved examples` : "Save as approved examples"}</button></div>
+      </section>
+
+      <section className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head"><h2>Add a single example</h2></div>
         <form onSubmit={add} style={{ display: "grid", gap: 10 }}>
           <div className="field"><label htmlFor="ex-kind">What kind of message is it?</label>
             <select id="ex-kind" value={kind} onChange={(e) => setKind(e.target.value)}>{Object.entries(EXAMPLE_KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>

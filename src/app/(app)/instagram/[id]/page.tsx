@@ -131,7 +131,7 @@ export default function LeadPage() {
     }
     setText(""); setSaving(false);
     await load();
-    if (!history) { setWhen(""); enqueueAnalysis(id, INSTAGRAM); }
+    if (!history) { setWhen(""); if (!settings?.ig_auto_paused) enqueueAnalysis(id, INSTAGRAM); }
     reloadLeads();
   }
 
@@ -327,6 +327,7 @@ export default function LeadPage() {
           {ai === "idle" && lead.needs_michael && shown.length === 0 && unreplied.length > 0 && <p className="sub">No draft was written because this one needs Michael.</p>}
 
           {note && <div className="banner info" role="status">{note}</div>}
+          {settings?.ig_auto_paused && <p className="sub" style={{ marginTop: 10 }}>Instagram auto-replies are paused today. Nothing is drafted by itself; use the buttons below if you want options for this chat.</p>}
           {newestIn && (
             <div style={{ marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 12, display: "grid", gap: 8 }}>
               <label htmlFor="ig-instr" className="panel-title" style={{ margin: 0 }}>Extra instruction for the next options</label>
@@ -352,7 +353,7 @@ export default function LeadPage() {
               <p className="sub">Saved to the conversation history only. Nothing is drafted, and follow-up timing isn&apos;t changed.</p>
             )}
             <div className="field"><label htmlFor="paste-when">When it was sent ({tz})</label><input id="paste-when" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} max={utcToZonedInput(new Date().toISOString(), tz)} /></div>
-            <div><button className="btn primary" type="submit" disabled={saving}>{saving ? "Saving…" : who === "lead" && !historyOnly ? "Save and write a reply" : "Save to history"}</button></div>
+            <div><button className="btn primary" type="submit" disabled={saving}>{saving ? "Saving…" : who === "lead" && !historyOnly ? (settings?.ig_auto_paused ? "Save (auto-replies paused)" : "Save and write a reply") : "Save to history"}</button></div>
           </form>
 
           <div style={{ marginTop: 18, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
