@@ -35,6 +35,8 @@ export default function LeadPage() {
   const [mOpen, setMOpen] = useState(false);
   const [mText, setMText] = useState("");
   const [mWhen, setMWhen] = useState("");
+  const [instruction, setInstruction] = useState("");
+  const [note, setNote] = useState<string | null>(null);
 
   const callUrl = resources.find((r) => r.key === "discovery_call" && r.active)?.url || "";
 
@@ -83,13 +85,15 @@ export default function LeadPage() {
   if (!loaded) return <p className="sub">Loading…</p>;
   if (!lead) return <div className="banner error">Lead not found. <Link href="/instagram">Back to leads</Link></div>;
 
-  const active = [...drafts].reverse().find((d) => d.status === "draft" || d.status === "copied");
+  const options = drafts.filter((d) => d.kind === "reply" && d.option_no && (d.status === "draft" || d.status === "copied")).sort((a, b) => (a.option_no || 0) - (b.option_no || 0));
+  const active = options.length ? undefined : [...drafts].reverse().find((d) => d.status === "draft" || d.status === "copied");
+  const shown: IgDraft[] = options.length ? options : active ? [active] : [];
+  const newestIn = [...msgs].filter((m) => m.direction === "incoming").sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime())[0];
   const lastOut = msgs.filter((m) => m.direction === "outgoing" && !m.history_only).reduce((t, m) => Math.max(t, new Date(m.created_at).getTime()), 0);
   const unreplied = msgs.filter((m) => m.direction === "incoming" && !m.history_only && new Date(m.created_at).getTime() > lastOut);
   const failed = unreplied.find((m) => m.analysis_error);
   const needsAnalysis = unreplied.length > 0 && !unreplied.every((m) => m.analyzed) && ai === "idle";
   const fu = followupState(lead, Date.now());
-  const holes = active ? placeholdersIn(active.body) : [];
 
   /** Puts the words of a voice note into a message that was saved as just "[voice message]". */
   async function addVoiceText(m: IgMessage, spoken: string) {
@@ -181,11 +185,26 @@ export default function LeadPage() {
     const { error } = await supabase.from("ig_messages").insert({ lead_id: id, direction: "outgoing", body: d.body, sent_at: now, kind: d.kind, analyzed: true });
     if (error) return setErr(error.message);
     await supabase.from("ig_drafts").update({ status: "sent", sent_at: now }).eq("id", d.id);
+    if (d.option_no) await supabase.from("ig_drafts").update({ status: "superseded" }).eq("lead_id", id).eq("kind", "reply").in("status", ["draft", "copied"]);
     const p: Record<string, unknown> = {};
     if (d.kind === "followup") p.followups_sent = lead!.followups_sent + 1;
     else { p.outreach_sent_at = now; p.followups_sent = 0; p.needs_reply = false; }
     if (callUrl && d.body.includes(callUrl)) { p.stage = "Call link sent"; p.link_sent_at = now; }
     await patchLead(p);
+  }
+
+  async function saveExample(body: string, kind: string) {
+    setErr(null);
+    const { error } = await supabase.from("ig_examples").insert({ kind, body, approved: true });
+    if (error) return setErr(error.message);
+    setNote("Saved to approved examples. You can edit or remove it under Instagram → Approved examples.");
+  }
+
+  async function regenerateWith(instruction: string) {
+    if (!newestIn) return setErr("There is no message from this lead to reply to yet.");
+    setErr(null);
+    void enqueueAnalysis(id, INSTAGRAM, newestIn.id, false, false, instruction.trim() || undefined);
+    setInstruction("");
   }
 
   async function saveEdit(d: IgDraft) {
@@ -253,10 +272,10 @@ export default function LeadPage() {
       <div className="chatgrid">
         <section className="card">
           <div className="thread" aria-label="Conversation" ref={threadRef}>
-            {items.length === 0 && !active && <p className="empty">No messages yet. If this person is already chatting, paste the old messages below, oldest first, and tick “Save to history only”. Paste their latest message without the tick to get a reply draft.</p>}
+            {items.length === 0 && shown.length === 0 && <p className="empty">No messages yet. If this person is already chatting, paste the old messages below, oldest first, and tick “Save to history only”. Paste their latest message without the tick to get a reply draft.</p>}
             {items.map((m) => (
               <div key={m.id} className={`bubble ${m.direction === "incoming" ? "in" : m.sender === "michael" ? "out michael" : "out"}`}>
-                {m.sender === "michael" && <span className="who">Michael replied personally</span>}
+                {m.sender === "michael" && <span className="who">Michael replied personally <button type="button" className="btn" style={{ padding: "1px 8px", fontSize: 11 }} onClick={() => saveExample(m.body, "michael_message")}>Save as example</button></span>}
                 {m.body}
                 <span className="when"><button type="button" className="btn" style={{ padding: "1px 8px", fontSize: 11 }} aria-label="Delete this message" onClick={() => deleteMessage(m)}>Delete message</button>{isBareVoice(m.body) && <> <VoiceNote label="Add voice message text" onText={(t) => addVoiceText(m, t)} /></>}</span>
                 {m.direction === "incoming" && m.history_only && (
@@ -268,39 +287,58 @@ export default function LeadPage() {
                 <span className="when">{m.direction === "incoming" ? "They sent " : m.sender === "michael" ? "Michael sent " : "You sent "}{formatDateTime(m.sent_at, tz)}</span>
               </div>
             ))}
-            {active && (
-              <div className="bubble draft">
-                {editing === active.id ? (
-                  <>
-                    <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={5} style={{ width: "100%" }} aria-label="Edit draft" />
-                    <div className="actions"><button className="btn primary" onClick={() => saveEdit(active)}>Save draft</button><button className="btn" onClick={() => setEditing(null)}>Cancel</button></div>
-                  </>
-                ) : (
-                  <>
-                    {active.body}
-                    <span className="when">
-                      <span className={`chip ${active.status === "copied" ? "today" : ""}`}>{active.status === "copied" ? "Copied, not sent yet" : active.kind === "followup" ? `Follow-up ${active.followup_number} draft` : active.kind === "opener" ? "Opener draft" : "Draft"}</span>
-                      {active.edited && " · edited"}
-                      {holes.length > 0 && <span className="chip high" style={{ marginLeft: 6 }}>Fill in {holes.join(" ")}</span>}
-                    </span>
-                    <div className="actions">
-                      <button className="btn" onClick={() => copyDraft(active)}>Copy</button>
-                      <button className="btn primary" onClick={() => markSent(active)} disabled={holes.length > 0}>Mark as Sent</button>
-                      <button className="btn" onClick={() => { setEditing(active.id); setEditText(active.body); }}>Edit</button>
-                      <button className="btn" onClick={() => regenerate(active)} disabled={ai !== "idle" || (active.kind === "reply" && unreplied.length === 0)}>Regenerate</button>
-                      <button className="btn" onClick={async () => { if (!window.confirm("Discard this draft? It won't be sent or counted.")) return; await supabase.from("ig_drafts").update({ status: "superseded" }).eq("id", active.id); await load(); reloadLeads(); }}>Discard</button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            {shown.map((d) => {
+              const holes = placeholdersIn(d.body);
+              return (
+                <div key={d.id} className="bubble draft">
+                  {d.option_no ? <span className="who">Option {d.option_no}: {d.option_label}{d.option_purpose ? ` · ${d.option_purpose}` : ""}</span> : null}
+                  {editing === d.id ? (
+                    <>
+                      <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={5} style={{ width: "100%" }} aria-label="Edit draft" />
+                      <div className="actions"><button className="btn primary" onClick={() => saveEdit(d)}>Save draft</button><button className="btn" onClick={() => setEditing(null)}>Cancel</button></div>
+                    </>
+                  ) : (
+                    <>
+                      {d.body}
+                      <span className="when">
+                        <span className={`chip ${d.status === "copied" ? "today" : ""}`}>{d.status === "copied" ? "Copied, not sent yet" : d.kind === "followup" ? `Follow-up ${d.followup_number} draft` : d.kind === "opener" ? "Opener draft" : "Draft"}</span>
+                        {d.edited && " · edited"}
+                        {holes.length > 0 && <span className="chip high" style={{ marginLeft: 6 }}>Fill in {holes.join(" ")}</span>}
+                      </span>
+                      <div className="actions">
+                        <button className="btn" onClick={() => copyDraft(d)}>Copy</button>
+                        <button className="btn primary" onClick={() => markSent(d)} disabled={holes.length > 0}>Mark as Sent</button>
+                        <button className="btn" onClick={() => { setEditing(d.id); setEditText(d.body); }}>Edit</button>
+                        {!d.option_no && <button className="btn" onClick={() => regenerate(d)} disabled={ai !== "idle" || (d.kind === "reply" && unreplied.length === 0)}>Regenerate</button>}
+                        <button className="btn" onClick={() => saveExample(d.body, "approved_edit")}>Save as approved example</button>
+                        <button className="btn" onClick={async () => { if (!window.confirm("Discard this draft? It won't be sent or counted.")) return; await supabase.from("ig_drafts").update({ status: "superseded" }).eq("id", d.id); await load(); reloadLeads(); }}>Discard</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {ai !== "idle" && <p className="sub" role="status">{ai === "queued" ? "Waiting for its turn…" : "Reading the message and writing a draft…"}</p>}
           {ai === "idle" && (failed || needsAnalysis) && (
             <div className="banner error" role="alert">{failed?.analysis_error || "This message hasn't been analysed yet."} <button className="btn" onClick={() => enqueueAnalysis(id, INSTAGRAM)}>Retry</button></div>
           )}
-          {ai === "idle" && lead.needs_michael && !active && unreplied.length > 0 && <p className="sub">No draft was written because this one needs Michael.</p>}
+          {ai === "idle" && lead.needs_michael && shown.length === 0 && unreplied.length > 0 && <p className="sub">No draft was written because this one needs Michael.</p>}
+
+          {note && <div className="banner info" role="status">{note}</div>}
+          {newestIn && (
+            <div style={{ marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 12, display: "grid", gap: 8 }}>
+              <label htmlFor="ig-instr" className="panel-title" style={{ margin: 0 }}>Extra instruction for the next options</label>
+              <textarea id="ig-instr" rows={2} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="For example: make it warmer, shorter, don't pitch yet, move towards a call…" />
+              <div className="row" style={{ flexWrap: "wrap" }}>
+                {["Make this shorter", "Make it warmer", "More heartfelt", "Introduce Peaceful Path", "Move towards a discovery call", "Don't ask another question", "Be more direct", "Don't pitch yet", "Explain Michael's approach", "Address their concern about money", "Make it sound more like Michael", "Acknowledge what they shared more deeply", "Don't repeat what we've already said"].map((c) => (
+                  <button key={c} type="button" className="btn" style={{ fontSize: 12, padding: "3px 10px" }} onClick={() => setInstruction((x) => (x.trim() ? x.trim() + ". " + c : c))}>{c}</button>
+                ))}
+              </div>
+              <div><button className="btn primary" type="button" disabled={ai !== "idle"} onClick={() => regenerateWith(instruction)}>{shown.some((d) => d.option_no) ? "Write new options" : "Write three options"}</button></div>
+            </div>
+          )}
 
           <form onSubmit={savePaste} style={{ marginTop: 16, display: "grid", gap: 10 }}>
             <div className="field"><label htmlFor="paste-who">Who wrote it</label>
@@ -348,9 +386,21 @@ export default function LeadPage() {
             </div>
           </section>
 
+          {lead.intel && (
+            <section className="card">
+              <div className="panel-title">Conversation analysis</div>
+              {lead.intel.step && <p><b>Where we are:</b> {lead.intel.step}</p>}
+              {lead.intel.experiencing.length > 0 && <><p style={{ marginTop: 8 }}><b>What they are experiencing</b></p><ul style={{ margin: "4px 0 0 18px" }}>{lead.intel.experiencing.map((x) => <li key={x}>{x}</li>)}</ul></>}
+              {lead.intel.wants.length > 0 && <><p style={{ marginTop: 8 }}><b>What they want</b></p><ul style={{ margin: "4px 0 0 18px" }}>{lead.intel.wants.map((x) => <li key={x}>{x}</li>)}</ul></>}
+              {lead.intel.readiness && <p style={{ marginTop: 8 }}><b>Readiness:</b> {lead.intel.readiness}</p>}
+              {lead.intel.next_action && <p style={{ marginTop: 8 }}><b>Next step:</b> {lead.intel.next_action}</p>}
+              {lead.intel.warning && <div className="banner error" style={{ marginTop: 8 }}>{lead.intel.warning}</div>}
+            </section>
+          )}
+
           <section className="card">
             <div className="panel-title">Follow-ups</div>
-            {fu.state === "due" && (<><p><b>Follow-up {fu.number} of 3 is due.</b></p><button className="btn primary" disabled={!!active} onClick={prepareFollowup}>Prepare follow-up {fu.number}</button>{active && <p className="sub">Finish or send the current draft first.</p>}</>)}
+            {fu.state === "due" && (<><p><b>Follow-up {fu.number} of 3 is due.</b></p><button className="btn primary" disabled={shown.length > 0} onClick={prepareFollowup}>Prepare follow-up {fu.number}</button>{shown.length > 0 && <p className="sub">Finish or send the current draft first.</p>}</>)}
             {fu.state === "waiting" && <p>Follow-up {fu.number} of 3 is due {formatDateTime(new Date(fu.dueAt).toISOString(), tz)}.</p>}
             {(fu.state === "none" || fu.state === "finished") && <p className="sub">{fu.why}</p>}
             <p className="sub" style={{ marginTop: 6 }}>{lead.followups_sent} of 3 follow-ups sent.</p>

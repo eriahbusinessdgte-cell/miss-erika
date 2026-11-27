@@ -83,11 +83,28 @@ test("flags wording already sent in the conversation", () => {
   assert.equal(repeatedWording("That sounds exhausting. When did the stomach stuff start for you?", prev), null);
   assert.ok(chk("A lot of people I work with come to me often.", { stage: "Open", allowedUrls: [], previous: prev }).some((p) => p.startsWith("repeats wording")));
 });
-import { editsBlock, buildEditorPrompt } from "../src/lib/ig.ts";
-test("past edits are shown to the writer as examples", () => {
+import { editsBlock, examplesBlock, buildIgPrompt } from "../src/lib/ig.ts";
+test("past edits and approved examples are shown to the writer", () => {
   assert.equal(editsBlock([]), "");
-  const b = editsBlock([{ ai: "Stiff draft.", final: "Warm final." }]);
-  assert.match(b, /You wrote: Stiff draft\./);
-  assert.match(b, /She sent: Warm final\./);
-  assert.match(buildEditorPrompt({ name: "Sam", draft: "d", latest: ["hi"], sent: [], edits: [{ ai: "a", final: "f" }] }), /She sent: f/);
+  assert.equal(examplesBlock([]), "");
+  assert.match(editsBlock([{ ai: "Stiff draft.", final: "Warm final." }]), /She sent: Warm final\./);
+  assert.match(examplesBlock([{ kind: "programme_intro", body: "Approved intro." }]), /\[Peaceful Path introduction\] Approved intro\./);
+});
+test("the prompt carries Erika's instruction, examples and counts", () => {
+  const p = buildIgPrompt({ name: "Sam", source: "comment", stage: "Fact Find", sections: [], resources: [], context: [], fresh: [{ direction: "incoming", body: "hi", when: "now" }], instruction: "Make it shorter", examples: [{ kind: "empathy", body: "Nice one." }], theirCount: 3, ourCount: 2 });
+  assert.match(p, /ERIKA'S EXTRA INSTRUCTION[^\n]*Make it shorter/);
+  assert.match(p, /APPROVED EXAMPLES/);
+  assert.match(p, /they have sent 3 message\(s\) and we have sent 2/);
+});
+test("three options and the conversation panel are parsed; stage can move two steps after Open", () => {
+  const raw = { summary: "s", stage: "Offer", door: "dream", options: [{ label: "Natural and conversational", purpose: "p", reply: "A" }, { label: "", reply: "B" }, { reply: "C" }, { reply: "" }], intel: { step: "Exploring the problem", experiencing: ["fear", "stuck"], wants: ["peace"], readiness: "Engaged.", next_action: "Explain approach.", warning: "" } };
+  const a = parseIgAnalysis(raw, "Fact Find");
+  assert.equal(a.options.length, 3);
+  assert.equal(a.options[1].label, "Deeper and more personal");
+  assert.equal(a.reply, "A");
+  assert.equal(a.stage, "Offer");
+  assert.deepEqual(a.intel.experiencing, ["fear", "stuck"]);
+  assert.equal(parseIgAnalysis(raw, "Open").stage, "Fact Find");
+  assert.equal(parseIgAnalysis({ summary: "s", needs_michael: true, options: [{ reply: "x" }] }, "Open").options.length, 0);
+  assert.equal(parseIgAnalysis({ summary: "s", options: [] }, "Open"), null);
 });

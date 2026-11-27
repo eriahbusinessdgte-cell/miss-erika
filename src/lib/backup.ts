@@ -7,7 +7,7 @@ export const FORMAT_VERSION = 1;
 export const TABLES = [
   "resources", "tasks", "knowledge",
   "clients", "client_messages", "reply_drafts", "score_history",
-  "ig_leads", "ig_messages", "ig_drafts", "ig_calls",
+  "ig_leads", "ig_messages", "ig_drafts", "ig_calls", "ig_examples",
   "checkins", "quiet_flags", "daily_reports", "kpi_reports",
 ] as const;
 export type TableName = (typeof TABLES)[number];
@@ -51,7 +51,7 @@ export function validateBackup(x: unknown): Check {
 export const TABLE_LABEL: Record<string, string> = {
   resources: "Resources and booking links", tasks: "Tasks", knowledge: "Sales Bible sections",
   clients: "Telegram clients", client_messages: "Telegram messages", reply_drafts: "Telegram drafts", score_history: "Score history",
-  ig_leads: "Instagram leads", ig_messages: "Instagram messages", ig_drafts: "Instagram drafts", ig_calls: "Discovery calls",
+  ig_leads: "Instagram leads", ig_messages: "Instagram messages", ig_drafts: "Instagram drafts", ig_calls: "Discovery calls", ig_examples: "Approved Instagram examples",
   checkins: "Monday check-ins", quiet_flags: "Quiet client flags", daily_reports: "Daily reports", kpi_reports: "KPI reports",
 };
 

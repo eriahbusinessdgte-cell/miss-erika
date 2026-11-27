@@ -112,6 +112,7 @@ export default function InstagramLeads() {
           <p className="sub">Drafts are written as Michael from the Sales Bible. You copy and send them yourself.</p>
         </div>
         <div className="row">
+          <Link className="btn" href="/instagram/examples">Approved examples</Link>
           <Link className="btn" href="/instagram/bible">Sales Bible</Link>
           <button className="btn primary" onClick={() => { setErr(null); setAdding(true); }}><Icon name="plus" size={16} /> Add lead</button>
         </div>

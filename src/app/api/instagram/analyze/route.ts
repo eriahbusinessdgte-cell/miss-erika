@@ -3,7 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { chatJson } from "@/lib/ai";
 import { formatDateTime } from "@/lib/core";
 import { extractJson } from "@/lib/erika";
-import { buildEditorPrompt, IG_EDITOR_SYSTEM, IG_SYSTEM, buildIgPrompt, checkMichaelReply, detectHandover, placeholdersIn, type LearnedEdit, parseIgAnalysis, pickSections, type IgAnalysis, type IgPromptMsg, type Source } from "@/lib/ig";
+import { IG_SYSTEM, buildIgPrompt, checkMichaelReply, detectHandover, type LearnedEdit, parseIgAnalysis, pickSections, type IgAnalysis, type IgPromptMsg, type Source } from "@/lib/ig";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -17,7 +17,8 @@ export async function POST(req: Request) {
 
   let leadId = "";
   let messageId = "";
-  try { const body = await req.json(); leadId = String(body.clientId || ""); messageId = String(body.messageId || ""); } catch { /* handled below */ }
+  let instruction = "";
+  try { const body = await req.json(); leadId = String(body.clientId || ""); messageId = String(body.messageId || ""); instruction = String(body.instruction || "").trim().slice(0, 600); } catch { /* handled below */ }
   if (!leadId) return NextResponse.json({ ok: false, error: "Missing lead." }, { status: 400 });
 
   const [{ data: lead }, { data: raw }, { data: settings }, { data: kn }, { data: res }] = await Promise.all([
@@ -66,6 +67,9 @@ export async function POST(req: Request) {
   // Learn from Erika: recent drafts she rewrote before sending.
   const { data: edited } = await supabase.from("ig_drafts").select("body,original_body").eq("kind", "reply").eq("edited", true).not("original_body", "is", null).in("status", ["draft", "copied", "sent"]).order("created_at", { ascending: false }).limit(6);
   const edits: LearnedEdit[] = ((edited || []) as { body: string; original_body: string }[]).filter((e) => e.body.trim() !== e.original_body.trim()).slice(0, 4).map((e) => ({ ai: e.original_body, final: e.body }));
+  // Approved examples saved by Erika and Michael (only ones marked approved).
+  const { data: exRows } = await supabase.from("ig_examples").select("kind,body").eq("approved", true).order("created_at", { ascending: false }).limit(5);
+  const examples = ((exRows || []) as { kind: string; body: string }[]);
   const sent = msgs.filter((m) => m.direction === "outgoing").slice(-5).map((m) => m.body);
   const wanted = pickSections(lead.stage, freshText);
   const sections = (kn || []).filter((k: { key: string }) => wanted.includes(k.key)).map((k: { title: string; body: string }) => ({ title: k.title, body: k.body }));
@@ -75,46 +79,42 @@ export async function POST(req: Request) {
   let retryNote: string | undefined;
   let problems: string[] = [];
   for (let attempt = 0; attempt < 3; attempt++) {
-    const ai = await chatJson(IG_SYSTEM, buildIgPrompt({ name: lead.name, source: lead.source as Source, stage: lead.stage, sections, resources, context, fresh: fresh.map(toPrompt), retryNote, sent, theirCount, ourCount, edits }));
+    const ai = await chatJson(IG_SYSTEM, buildIgPrompt({ name: lead.name, source: lead.source as Source, stage: lead.stage, sections, resources, context, fresh: fresh.map(toPrompt), retryNote, sent, theirCount, ourCount, edits, examples, instruction }));
     if (!ai.ok) return fail(ai.error);
     const parsed = parseIgAnalysis(extractJson(ai.text), lead.stage);
     if (!parsed) { retryNote = "the answer was not valid JSON with all required keys"; continue; }
     analysis = parsed;
-    problems = parsed.needs_michael ? [] : checkMichaelReply(parsed.reply, { stage: parsed.stage, allowedUrls, previous: sent });
+    problems = parsed.needs_michael ? [] : Array.from(new Set(parsed.options.flatMap((o) => checkMichaelReply(o.reply, { stage: parsed.stage, allowedUrls, previous: sent }))));
+    if (!parsed.needs_michael && parsed.options.length < 3) problems = [...problems, "give exactly 3 options"];
     if (problems.length === 0) break;
     retryNote = problems.join(", ");
   }
   if (!analysis) return fail("The AI's answer couldn't be read. Press Retry.");
-  // If it still breaks the Bible's rules, don't guess: leave it for Michael.
-  // A draft that only overlaps earlier wording after several tries is still usable: Erika can tweak it.
-  if (problems.length > 0 && !problems.every((p) => p.startsWith("repeats wording"))) {
-    analysis = { ...analysis, reply: "", needs_michael: true, michael_reason: `Couldn't write a safe reply (${problems.join(", ")}). Needs you.` };
-  }
-
-  // Second pass: an editor makes the draft warm, personal and flowing. If its version breaks a rule, keep the first one.
-  if (analysis.reply && !analysis.needs_michael) {
-    const ed = await chatJson(IG_EDITOR_SYSTEM, buildEditorPrompt({ name: lead.name, draft: analysis.reply, latest: fresh.map((m) => m.body), sent, edits }));
-    if (ed.ok) {
-      const edited = (extractJson(ed.text) as { reply?: unknown } | null)?.reply;
-      if (typeof edited === "string" && edited.trim().length > 20) {
-        const clean = edited.trim();
-        const keepsLinks = (analysis.reply.match(/https?:\/\/[^\s)]+/g) || []).every((u) => clean.includes(u));
-        const keepsHoles = placeholdersIn(analysis.reply).every((h) => clean.includes(h));
-        if (keepsLinks && keepsHoles && checkMichaelReply(clean, { stage: analysis.stage, allowedUrls, previous: sent }).length === 0) analysis = { ...analysis, reply: clean };
-      }
+  // Keep every option that follows the Bible's rules. Overlap with earlier wording alone is fine (Erika can tweak it).
+  // If none is usable, don't guess: leave it for Michael.
+  if (!analysis.needs_michael) {
+    const blocking = (reply: string) => checkMichaelReply(reply, { stage: analysis!.stage, allowedUrls, previous: sent }).filter((p) => !p.startsWith("repeats wording"));
+    const usable = analysis.options.filter((o) => blocking(o.reply).length === 0);
+    if (usable.length === 0) {
+      analysis = { ...analysis, reply: "", options: [], needs_michael: true, michael_reason: `Couldn't write a safe reply (${problems.join(", ")}). Needs you.` };
+    } else {
+      analysis = { ...analysis, options: usable, reply: usable[0].reply };
     }
   }
 
   await supabase.from("ig_drafts").update({ status: "superseded" }).eq("lead_id", leadId).in("status", ["draft", "copied"]);
-  if (analysis.reply) {
-    const { error } = await supabase.from("ig_drafts").insert({
-      lead_id: leadId, kind: "reply", body: analysis.reply, original_body: analysis.reply, status: "draft",
-      contains_link: allowedUrls.some((u: string) => analysis!.reply.includes(u)),
-    });
-    if (error) return fail(`Couldn't save the draft: ${error.message}`);
+  if (analysis.options.length > 0) {
+    const { error } = await supabase.from("ig_drafts").insert(
+      analysis.options.map((o, i) => ({
+        lead_id: leadId, kind: "reply", body: o.reply, original_body: o.reply, status: "draft",
+        option_no: i + 1, option_label: o.label, option_purpose: o.purpose,
+        contains_link: allowedUrls.some((u: string) => o.reply.includes(u)),
+      }))
+    );
+    if (error) return fail(`Couldn't save the drafts: ${error.message}`);
   }
   await supabase.from("ig_messages").update({ analyzed: true, analysis_error: null }).in("id", ids);
-  const patch: Record<string, unknown> = { summary: analysis.summary, needs_reply: true, stage: analysis.stage };
+  const patch: Record<string, unknown> = { summary: analysis.summary, needs_reply: true, stage: analysis.stage, intel: analysis.intel };
   if (analysis.door) patch.door = analysis.door;
   if (analysis.needs_michael) { patch.needs_michael = true; patch.michael_reason = analysis.michael_reason; }
   await supabase.from("ig_leads").update(patch).eq("id", leadId);

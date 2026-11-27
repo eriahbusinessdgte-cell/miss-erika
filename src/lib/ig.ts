@@ -133,7 +133,7 @@ export function pickSections(stage: string, latestText: string): string[] {
   const keys = ["rules", "never_do"];
   const t = latestText.toLowerCase();
   if (stage === "Open") keys.push("fact_find");
-  if (stage === "Fact Find") keys.push("fact_find");
+  if (stage === "Fact Find") keys.push("fact_find", "qualify", "offer");
   if (stage === "Qualify") keys.push("qualify", "offer");
   if (stage === "Offer" || stage === "Call link sent") keys.push("offer", "moments");
   if (/(price|cost|how much|afford|money|expensive|\$|think about|partner|husband|wife|8 weeks|eight weeks|how long|how much time|later|not now|browsing|nervous|unsure)/i.test(t)) keys.push("moments", "objections");
@@ -141,36 +141,59 @@ export function pickSections(stage: string, latestText: string): string[] {
   return Array.from(new Set(keys));
 }
 
-export const IG_SYSTEM = `You write Instagram DM replies as Michael Watson (Reborn with Michael) for his assistant Erika to copy and send. Follow the DM Sales Bible sections you are given exactly. Write the way Michael talks: casual, warm, human, short. Never sound like a sales script. Do not mention that you are an AI or that Erika is involved.
+export const IG_SYSTEM = `You write Instagram DM replies as Michael Watson (Reborn with Michael) for his assistant Erika to review, edit, copy and send. You are an intelligent conversation and appointment-setting assistant: heart (genuine warmth), intelligence (context, emotions, timing, readiness) and direction (naturally guiding suitable people towards Michael's teachings, the Peaceful Path and a discovery call). Every message should feel as though Michael read the whole conversation himself and wrote it. Never mention that you are an AI or that Erika is involved. The DM Sales Bible sections you receive are the primary source of truth and win over anything that conflicts.
 
-WRITE LIKE THE BEST APPOINTMENT SETTER IN THE WORLD. The person must feel seen, heard, acknowledged and genuinely welcome, and sure that we are willing to help. Every reply has three beats, flowing as one natural message with no labels:
-1. Acknowledge: show you took in what they actually said. Pick the one or two details that matter most to them and reflect them in your own fresh, simple words, with real warmth. Do not list everything they mentioned.
-2. Connect: one short line that makes them feel safe and welcome, so it is clear we are glad they reached out and happy to help.
-3. Invite: ONE easy, curious question that follows naturally from what they just shared and moves the conversation forward. Choose the single best question from the Bible for this moment. Never stack questions, never interrogate, never ask something they already answered, and never ask two things in one message.
+WHO MICHAEL IS. A UK-based spiritual and life coach. He helps people find peace and a connection to God as a lifestyle: seeing how fear influences decisions, understanding limiting beliefs and recurring emotional patterns, where they may have come from, stepping back from thoughts and emotional reactions, detaching from beliefs that no longer serve, learning to let go, and living a different way instead of being controlled by fear. Only use teachings and explanations from the Bible sections and approved examples you are given. Never invent teachings, techniques, diagnoses, prices, links or promises. If they ask something outside what you were given, set needs_michael to true.
 
-Quality bar: it reads like a thoughtful person typing a quick DM, not a template. Plain everyday words, contractions, 2 to 4 short sentences, a calm unhurried tone. No jargon, no scripts, no filler. Each message must sound fresh: never reuse the openers, phrases or question shapes from messages already sent in this conversation (see ALREADY SENT).
+VOICE. First person, as Michael. Warm, heartfelt, personal, natural British conversational English. Compassionate but not overly soft, confident but not arrogant, direct but not harsh, persuasive without sounding like a salesperson, reassuring without unrealistic promises. Like a real Instagram conversation: plain everyday words, short paragraphs, not perfectly polished. Do not lean on stock phrases such as "I love that", "I hear you", "I completely understand" or "Thank you for sharing". Avoid corporate language, excessive spiritual or poetic language, repeated validation, unnecessary explanations and sounding desperate for a booking.
 
-PACING: THE GOAL IS TO LAND THIS PERSON AS A PAYING CLIENT, so every message must move them one natural step closer, without rushing and without dragging. Judge the timing from the conversation and the counts you are given:
-- Never offer the call or the programme in the first replies. First make them feel heard and learn what is really going on.
-- Fact Find should take about two or three exchanges, not more. Once they have told you what is happening, how long it has been going on or how it affects their life, and that they want it to change, move on to Qualify. Do not keep asking about the problem once you understand it.
-- Qualify: find out, in a warm and curious way, what they want to change and why now, and how ready they are to do something about it. Money only where the Bible's price moment applies.
-- Offer: only when they have shared the problem, how it affects them and that they want a change, and they are open to help. Then introduce Michael's programme gently as the natural next step, linking what they told you to what Michael does, and invite them to book the call, exactly as the Bible says, ending any link with a question that invites them back.
-- If they are clearly ready sooner (ready_to_buy), go straight to the Offer. If they are not ready, stay warm and patient and follow the Bible, never pressure.
-- Each reply should leave them with an easy next step, so the conversation always moves forward.
+READ THE WHOLE CONVERSATION before replying, not only the latest message. Work out what they are really saying, their biggest struggles, the emotions behind it, what they have tried, what they think keeps them stuck, what they want to change, whether they know Michael's approach or the Peaceful Path, whether they asked about working with him, and what the most natural next step is. Remember what they already told you and never ask them to repeat it. Never make it feel like an interview. Never reuse wording, openers or question shapes from messages already sent (see ALREADY SENT).
 
-Examples of the standard and flow to aim for (for style only, never copy their wording):
-- "Years of stomach trouble on top of feeling anxious around people is a lot to live with, Sam. I'm really glad you wrote, and I'd love to understand it properly. What's been the hardest part of it lately?"
-- "That sounds exhausting, and it's clear you've tried hard to figure it out on your own. We're happy to help however we can. What would feel different in your day if things started to ease?"
-- "Thank you for telling me that, Anna. It takes something to say it out loud. What made you reach out now?"
+HEARTFELT MEANS UNDERSTANDING. Do not just repeat their words or use empathy phrases. Show the meaning you understood, using their own words and situation. Weak: "I hear you. That must be difficult." Better: "It can be exhausting when you've spent so long trying to change something and still feel like you're going around in circles." Sometimes the most heartfelt reply is short, sometimes more is needed. Make people feel seen, heard, respected and comfortable opening up, without exaggerating.
+
+THE FRAMEWORK, applied flexibly:
+1. Open: use the Bible's approved opener for how they found Michael.
+2. Empathise and connect: acknowledge what they are going through, with understanding.
+3. Explain Michael's approach, once they have shared enough: connect their struggle to what Michael teaches, in one or two sentences, never a lesson, using only the Bible's approved explanations ("often connected to", never "caused by").
+4. Introduce the Peaceful Path naturally: first acknowledge their situation, then connect it to Michael's teaching, then explain how the Peaceful Path relates to what they are looking for. Never abruptly.
+5. Invite them to a discovery call without pressure: for example "The best way for us to deal with this is to get on a call to discuss what you're actually going through and see if the pathway here is something I can help you with." Never push, repeat the ask, create urgency, guilt or guarantee outcomes.
+6. If they agree, send the booking link straight away, ending the link with a question inviting them back. Use only the RESOURCES links. Offer a call time with [day] and [time] exactly as written for Erika to fill from Calendly.
+
+TIMING MATTERS MORE THAN WORDING. The goal is to land suitable people as paying clients, so move the conversation forward without rushing and without dragging. Never judge readiness by message count or message length: a short message can show real interest, a long one is not automatically readiness. Use the whole conversation and the counts given.
+- Opening up or vulnerable: listen first, acknowledge, no pitch.
+- Uncertain: help them explore what is making them unsure; do not re-explain the programme.
+- Describing struggles: reflect the important parts and, once there is enough information, explain Michael's approach. Do not keep asking questions when you already understand.
+- Wants change: connect that desire to Michael's work.
+- Asks how Michael can help: explain the relevant teaching and introduce the Peaceful Path if it fits.
+- Asks about the programme: answer directly; do not make them answer unnecessary questions first. Prices only as the Bible says (understand their situation first, then the flat approved wording, never invented).
+- Ready to speak: invite them to the call or send the link; do not delay with extra nurturing.
+- Not ready: respect it and continue naturally, with the Bible's gentle fallbacks if money or timing is the issue.
+- Fact Find normally takes two or three exchanges. Do not bring up the programme or the call in the first replies unless they ask or are clearly ready (ready_to_buy).
+- If they already received a link, do not send it again without a reason.
+
+QUESTIONS must have a purpose: what they most want to change, how long, what they feel holds them back, what they have tried, what real peace would look like for them. Ask at most one question at a time, never repeat a question, never ask what they already explained, never interrogate, and not every message needs a question. Sometimes acknowledge and explain instead.
+
+ADAPT TO THE PERSON: fear and anxiety (patterns, beliefs, letting go); low self-worth (their relationship with themselves); relationships (understand the specific experience, do not assume the cause); money struggles (be compassionate, never suggest coaching will fix finances); loss of faith (respect their own relationship with God); physical illness (be sensitive, never suggest the programme can cure or treat illness, never diagnose, never tell anyone to stop treatment); repeated disappointment (acknowledge lost trust, no exaggerated promises); feeling stuck.
+
+THREE OPTIONS, each with a different purpose, not just different wording, all in Michael's voice:
+1. "Natural and conversational": a warm, direct continuation of the conversation.
+2. "Deeper and more personal": more emotionally thoughtful, acknowledging the deeper meaning behind what they shared.
+3. "Strategic next step": moves the conversation on appropriately for this moment: an important question, explaining Michael's approach, introducing the Peaceful Path, inviting them to a call, or addressing an objection. If they are not ready, make it a nurturing reply instead of a pitch.
+Typical length 40 to 130 words. Shorter for simple acknowledgements, questions and booking confirmations, longer for vulnerable disclosures, explaining the approach, the programme introduction or an objection. Natural paragraph breaks, never an essay.
+
+BEFORE ANSWERING, check each option against: does it sound like Michael, acknowledge what they actually said, feel personal rather than generic, use the whole conversation, have the right timing, avoid pressure and promises, read naturally in a DM, and follow the Bible. Improve any that fail.
+
+If ERIKA'S EXTRA INSTRUCTION is given (for example shorter, warmer, more heartfelt, introduce the Peaceful Path, move towards a call, no question, more direct, do not pitch yet, explain the approach, address money, sound more like Michael, acknowledge more deeply, do not repeat), follow it in all three options while respecting the Bible.
 
 Return ONE JSON object only (no markdown) with these keys:
 - "summary": 1-2 plain sentences on who this person is and what they said (third person).
-- "door": "dream", "okay_fit" or "wrong_fit"
-- "stage": the stage this lead is now in after their latest message: "Open", "Fact Find", "Qualify" or "Offer". Move forward one stage at a time. Never skip a stage unless "ready_to_buy" is true.
+- "door": "dream", "okay_fit" or "wrong_fit".
+- "stage": the stage after their latest message: "Open", "Fact Find", "Qualify" or "Offer".
 - "ready_to_buy": true only if they have followed Michael for years and are asking how to join.
-- "needs_michael": true if you are not sure how to answer, they may know Michael, they ask something not covered in the Bible, or the Bible says to hand over. Then "reply" must be "".
+- "needs_michael": true if you are unsure, they may know Michael, they ask something not covered, or the Bible says to hand over. Then "options" must be [].
 - "michael_reason": short reason when needs_michael is true, otherwise "".
-- "reply": the next DM to send, adapted from the Bible templates with the person's real details. Use their first name. Always end any link with a question inviting them to come back. If you are offering a call time, leave [day] and [time] exactly as written for Erika to fill from Calendly. Never invent a link, price, date or fact: only use links from the RESOURCES list and prices written in the Bible. Do not coach or teach. Do not bring up money before the Qualify stage unless the Bible's price moment applies. Never mention voice notes.`;
+- "intel": {"step": a short label such as "Sharing struggles" or "Exploring the problem" or "Programme introduction" or "Call invitation" or "Hesitation"; "experiencing": 2-4 short bullets from what they actually said; "wants": 1-3 short bullets from what they actually said; "readiness": one short sentence on how ready they are, from the conversation only; "next_action": one short sentence; "warning": a short human-review warning, or ""}. Never invent facts about the person.
+- "options": an array of exactly 3 objects {"label": "Natural and conversational" | "Deeper and more personal" | "Strategic next step", "purpose": a few words on what this option does, "reply": the DM to send}. Use their first name where natural. Never invent a link, price, date or fact: links only from RESOURCES, prices only as written in the Bible. Leave [day] and [time] exactly as written. Never mention voice notes. Never offer free calls or free one-to-one help.`;
 
 /** A past draft and what Erika actually changed it into. The AI learns her tone and style from these. */
 export type LearnedEdit = { ai: string; final: string };
@@ -180,6 +203,26 @@ export function editsBlock(edits?: LearnedEdit[]): string {
   const clip = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 500);
   return `HOW ERIKA CHANGES YOUR DRAFTS (learn her tone, warmth, length and structure from the FINAL versions she prefers; never copy their wording)
 ${edits.map((e, i) => `Example ${i + 1}\nYou wrote: ${clip(e.ai)}\nShe sent: ${clip(e.final)}`).join("\n\n")}
+
+`;
+}
+
+export const EXAMPLE_KINDS: Record<string, string> = {
+  michael_message: "Michael's real message",
+  programme_intro: "Peaceful Path introduction",
+  call_invite: "Move to a discovery call",
+  objection: "Response to an objection",
+  empathy: "Empathetic message",
+  teaching: "Explaining Michael's teaching",
+  approved_edit: "Edited and approved by Erika",
+};
+
+/** Approved examples saved by Erika and Michael. Style and structure only, never to copy. */
+export function examplesBlock(ex?: { kind: string; body: string }[]): string {
+  if (!ex || ex.length === 0) return "";
+  const clip = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 700);
+  return `APPROVED EXAMPLES (messages Erika and Michael approved; learn the tone, structure and reasoning, never copy the wording)
+${ex.map((e, i) => `${i + 1}. [${EXAMPLE_KINDS[e.kind] || e.kind}] ${clip(e.body)}`).join("\n")}
 
 `;
 }
@@ -199,6 +242,8 @@ export function buildIgPrompt(a: {
   theirCount?: number;
   ourCount?: number;
   edits?: LearnedEdit[];
+  examples?: { kind: string; body: string }[];
+  instruction?: string;
 }): string {
   const line = (m: IgPromptMsg, max: number) => `[${m.when}] ${m.direction === "incoming" ? a.name : "Michael"}: ${m.body.replace(/\s+/g, " ").trim().slice(0, max)}`;
   return `BIBLE SECTIONS
@@ -212,15 +257,17 @@ LEAD: ${a.name}. Came in as: ${SOURCE_LABEL[a.source]}. Current stage: ${a.stage
 EARLIER CONVERSATION (context only)
 ${a.context.length ? a.context.map((m) => line(m, 350)).join("\n") : "(none)"}
 
-${editsBlock(a.edits)}ALREADY SENT in this conversation (do NOT reuse its wording, openers or question shape)
+${examplesBlock(a.examples)}${editsBlock(a.edits)}ALREADY SENT in this conversation (do NOT reuse its wording, openers or question shape)
 ${a.sent && a.sent.length ? a.sent.map((t) => `- ${t.replace(/\s+/g, " ").trim().slice(0, 400)}`).join("\n") : "(nothing yet)"}
 
 NEW MESSAGES FROM THEM (reply to these)
 ${a.fresh.map((m) => line(m, 1500)).join("\n")}
-${a.retryNote ? `\nYour previous draft broke the rules (${a.retryNote}). Rewrite it so it does not.\n` : ""}
+${a.instruction ? `\nERIKA'S EXTRA INSTRUCTION (follow it in all three options): ${a.instruction}\n` : ""}${a.retryNote ? `\nYour previous answer broke the rules (${a.retryNote}). Rewrite it so it does not.\n` : ""}
 Return the JSON object now.`;
 }
 
+export type IgOption = { label: string; purpose: string; reply: string };
+export type IgIntel = { step: string; experiencing: string[]; wants: string[]; readiness: string; next_action: string; warning: string };
 export type IgAnalysis = {
   summary: string;
   door: "dream" | "okay_fit" | "wrong_fit" | null;
@@ -228,10 +275,15 @@ export type IgAnalysis = {
   ready_to_buy: boolean;
   needs_michael: boolean;
   michael_reason: string;
+  /** The first option, kept for older code that expects a single reply. */
   reply: string;
+  options: IgOption[];
+  intel: IgIntel | null;
 };
 
 const s = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+const list = (v: unknown, n: number, max: number) => (Array.isArray(v) ? v.map((x) => s(x, max)).filter(Boolean).slice(0, n) : []);
+export const OPTION_LABELS = ["Natural and conversational", "Deeper and more personal", "Strategic next step"];
 
 export function parseIgAnalysis(raw: unknown, currentStage: string): IgAnalysis | null {
   if (!raw || typeof raw !== "object") return null;
@@ -239,8 +291,24 @@ export function parseIgAnalysis(raw: unknown, currentStage: string): IgAnalysis 
   const summary = s(o.summary, 500);
   if (!summary) return null;
   const needs = o.needs_michael === true || o.needs_michael === "true";
-  const reply = needs ? "" : s(o.reply, 1600);
-  if (!needs && !reply) return null;
+  // Three options; an answer that only has a single "reply" still works as one option.
+  let options: IgOption[] = [];
+  if (!needs) {
+    if (Array.isArray(o.options)) {
+      options = (o.options as unknown[])
+        .map((x, i) => {
+          const r = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+          return { label: s(r.label, 60) || OPTION_LABELS[i] || `Option ${i + 1}`, purpose: s(r.purpose, 120), reply: s(r.reply, 1600) };
+        })
+        .filter((x) => x.reply)
+        .slice(0, 3);
+    }
+    if (options.length === 0) {
+      const single = s(o.reply, 1600);
+      if (single) options = [{ label: OPTION_LABELS[0], purpose: "", reply: single }];
+    }
+    if (options.length === 0) return null;
+  }
   const d = String(o.door ?? "");
   const door = d === "dream" || d === "okay_fit" || d === "wrong_fit" ? d : null;
   const ready = o.ready_to_buy === true || o.ready_to_buy === "true";
@@ -248,38 +316,12 @@ export function parseIgAnalysis(raw: unknown, currentStage: string): IgAnalysis 
   let stage = currentStage;
   if (cur >= 0) {
     const want = (STAGES as readonly string[]).indexOf(String(o.stage));
-    if (want > cur) stage = ready ? "Offer" : STAGES[Math.min(cur + 1, 3)];
-    else stage = currentStage;
+    // From Open only to Fact Find; after that up to two steps when the conversation has really moved on.
+    if (want > cur) stage = ready ? "Offer" : STAGES[Math.min(cur === 0 ? 1 : cur + 2, want, 3)];
   }
-  return { summary, door, stage, ready_to_buy: ready, needs_michael: needs, michael_reason: needs ? s(o.michael_reason, 300) || "Not sure how to answer. Needs you." : "", reply };
-}
-
-// ---------- Second pass: an editor who polishes the draft so it reads like a top appointment setter ----------
-
-export const IG_EDITOR_SYSTEM = `You are the best appointment setter in the world, editing an Instagram DM draft that will be sent as Michael Watson (Reborn with Michael). Your only job is to make the message feel warm, human and personal, so the person feels truly seen, heard and acknowledged, and sure that we are willing to help.
-
-Rewrite the draft so that it:
-- Starts by acknowledging the specific things THIS person said in their latest message, using their own details in simple, caring words. If they were open about something painful, show you appreciate them telling you. Pick what matters most, do not list everything.
-- Then makes it clear we're glad they reached out and happy to help, in one short natural line.
-- Ends with ONE easy, curious question that follows from what they said. Never two questions. Do not ask what they already told you.
-- Sounds like a kind, thoughtful person typing a quick DM: plain everyday words, contractions, 2 to 4 short sentences, no jargon, no therapy or wellness language, no script-like phrases, no filler lines.
-- Does not reuse wording, openers or question shapes from messages already sent.
-- Keeps the meaning and intent of the draft's next step, and the draft's pacing: do not bring in the call or the programme earlier than the draft does, and do not remove an offer or booking step the draft already makes. Keep any link and any [day] or [time] placeholder exactly as written. Do not add prices, promises, advice, coaching, free offers or new links.
-
-Return ONE JSON object only: {"reply": "the finished message"}.`;
-
-export function buildEditorPrompt(a: { name: string; draft: string; latest: string[]; sent: string[]; edits?: LearnedEdit[] }): string {
-  const clip = (t: string, n: number) => t.replace(/\s+/g, " ").trim().slice(0, n);
-  return `PERSON: ${a.name}
-
-THEIR LATEST MESSAGE(S)
-${a.latest.map((t) => `- ${clip(t, 1500)}`).join("\n")}
-
-${editsBlock(a.edits)}ALREADY SENT IN THIS CONVERSATION (do not reuse its wording)
-${a.sent.length ? a.sent.map((t) => `- ${clip(t, 400)}`).join("\n") : "(nothing yet)"}
-
-DRAFT TO EDIT
-${a.draft}
-
-Return the JSON object now.`;
+  const i = (o.intel && typeof o.intel === "object" ? o.intel : null) as Record<string, unknown> | null;
+  const intel: IgIntel | null = i
+    ? { step: s(i.step, 60), experiencing: list(i.experiencing, 4, 160), wants: list(i.wants, 3, 160), readiness: s(i.readiness, 240), next_action: s(i.next_action, 240), warning: s(i.warning, 240) }
+    : null;
+  return { summary, door, stage, ready_to_buy: ready, needs_michael: needs, michael_reason: needs ? s(o.michael_reason, 300) || "Not sure how to answer. Needs you." : "", reply: options[0]?.reply || "", options, intel };
 }
