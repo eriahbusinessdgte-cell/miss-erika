@@ -3,7 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { chatJson } from "@/lib/ai";
 import { formatDateTime } from "@/lib/core";
 import { extractJson } from "@/lib/erika";
-import { buildEditorPrompt, IG_EDITOR_SYSTEM, IG_SYSTEM, buildIgPrompt, checkMichaelReply, detectHandover, placeholdersIn, parseIgAnalysis, pickSections, type IgAnalysis, type IgPromptMsg, type Source } from "@/lib/ig";
+import { buildEditorPrompt, IG_EDITOR_SYSTEM, IG_SYSTEM, buildIgPrompt, checkMichaelReply, detectHandover, placeholdersIn, type LearnedEdit, parseIgAnalysis, pickSections, type IgAnalysis, type IgPromptMsg, type Source } from "@/lib/ig";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -63,6 +63,9 @@ export async function POST(req: Request) {
   const context = msgs.filter((m) => !ids.includes(m.id)).slice(-14).map(toPrompt);
   const theirCount = msgs.filter((m) => m.direction === "incoming").length;
   const ourCount = msgs.filter((m) => m.direction === "outgoing").length;
+  // Learn from Erika: recent drafts she rewrote before sending.
+  const { data: edited } = await supabase.from("ig_drafts").select("body,original_body").eq("kind", "reply").eq("edited", true).not("original_body", "is", null).in("status", ["draft", "copied", "sent"]).order("created_at", { ascending: false }).limit(6);
+  const edits: LearnedEdit[] = ((edited || []) as { body: string; original_body: string }[]).filter((e) => e.body.trim() !== e.original_body.trim()).slice(0, 4).map((e) => ({ ai: e.original_body, final: e.body }));
   const sent = msgs.filter((m) => m.direction === "outgoing").slice(-5).map((m) => m.body);
   const wanted = pickSections(lead.stage, freshText);
   const sections = (kn || []).filter((k: { key: string }) => wanted.includes(k.key)).map((k: { title: string; body: string }) => ({ title: k.title, body: k.body }));
@@ -72,7 +75,7 @@ export async function POST(req: Request) {
   let retryNote: string | undefined;
   let problems: string[] = [];
   for (let attempt = 0; attempt < 3; attempt++) {
-    const ai = await chatJson(IG_SYSTEM, buildIgPrompt({ name: lead.name, source: lead.source as Source, stage: lead.stage, sections, resources, context, fresh: fresh.map(toPrompt), retryNote, sent, theirCount, ourCount }));
+    const ai = await chatJson(IG_SYSTEM, buildIgPrompt({ name: lead.name, source: lead.source as Source, stage: lead.stage, sections, resources, context, fresh: fresh.map(toPrompt), retryNote, sent, theirCount, ourCount, edits }));
     if (!ai.ok) return fail(ai.error);
     const parsed = parseIgAnalysis(extractJson(ai.text), lead.stage);
     if (!parsed) { retryNote = "the answer was not valid JSON with all required keys"; continue; }
@@ -90,7 +93,7 @@ export async function POST(req: Request) {
 
   // Second pass: an editor makes the draft warm, personal and flowing. If its version breaks a rule, keep the first one.
   if (analysis.reply && !analysis.needs_michael) {
-    const ed = await chatJson(IG_EDITOR_SYSTEM, buildEditorPrompt({ name: lead.name, draft: analysis.reply, latest: fresh.map((m) => m.body), sent }));
+    const ed = await chatJson(IG_EDITOR_SYSTEM, buildEditorPrompt({ name: lead.name, draft: analysis.reply, latest: fresh.map((m) => m.body), sent, edits }));
     if (ed.ok) {
       const edited = (extractJson(ed.text) as { reply?: unknown } | null)?.reply;
       if (typeof edited === "string" && edited.trim().length > 20) {
@@ -105,7 +108,7 @@ export async function POST(req: Request) {
   await supabase.from("ig_drafts").update({ status: "superseded" }).eq("lead_id", leadId).in("status", ["draft", "copied"]);
   if (analysis.reply) {
     const { error } = await supabase.from("ig_drafts").insert({
-      lead_id: leadId, kind: "reply", body: analysis.reply, status: "draft",
+      lead_id: leadId, kind: "reply", body: analysis.reply, original_body: analysis.reply, status: "draft",
       contains_link: allowedUrls.some((u: string) => analysis!.reply.includes(u)),
     });
     if (error) return fail(`Couldn't save the draft: ${error.message}`);

@@ -172,6 +172,18 @@ Return ONE JSON object only (no markdown) with these keys:
 - "michael_reason": short reason when needs_michael is true, otherwise "".
 - "reply": the next DM to send, adapted from the Bible templates with the person's real details. Use their first name. Always end any link with a question inviting them to come back. If you are offering a call time, leave [day] and [time] exactly as written for Erika to fill from Calendly. Never invent a link, price, date or fact: only use links from the RESOURCES list and prices written in the Bible. Do not coach or teach. Do not bring up money before the Qualify stage unless the Bible's price moment applies. Never mention voice notes.`;
 
+/** A past draft and what Erika actually changed it into. The AI learns her tone and style from these. */
+export type LearnedEdit = { ai: string; final: string };
+
+export function editsBlock(edits?: LearnedEdit[]): string {
+  if (!edits || edits.length === 0) return "";
+  const clip = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 500);
+  return `HOW ERIKA CHANGES YOUR DRAFTS (learn her tone, warmth, length and structure from the FINAL versions she prefers; never copy their wording)
+${edits.map((e, i) => `Example ${i + 1}\nYou wrote: ${clip(e.ai)}\nShe sent: ${clip(e.final)}`).join("\n\n")}
+
+`;
+}
+
 export type IgPromptMsg = { direction: "incoming" | "outgoing"; body: string; when: string };
 
 export function buildIgPrompt(a: {
@@ -186,6 +198,7 @@ export function buildIgPrompt(a: {
   sent?: string[];
   theirCount?: number;
   ourCount?: number;
+  edits?: LearnedEdit[];
 }): string {
   const line = (m: IgPromptMsg, max: number) => `[${m.when}] ${m.direction === "incoming" ? a.name : "Michael"}: ${m.body.replace(/\s+/g, " ").trim().slice(0, max)}`;
   return `BIBLE SECTIONS
@@ -199,7 +212,7 @@ LEAD: ${a.name}. Came in as: ${SOURCE_LABEL[a.source]}. Current stage: ${a.stage
 EARLIER CONVERSATION (context only)
 ${a.context.length ? a.context.map((m) => line(m, 350)).join("\n") : "(none)"}
 
-ALREADY SENT in this conversation (do NOT reuse its wording, openers or question shape)
+${editsBlock(a.edits)}ALREADY SENT in this conversation (do NOT reuse its wording, openers or question shape)
 ${a.sent && a.sent.length ? a.sent.map((t) => `- ${t.replace(/\s+/g, " ").trim().slice(0, 400)}`).join("\n") : "(nothing yet)"}
 
 NEW MESSAGES FROM THEM (reply to these)
@@ -255,14 +268,14 @@ Rewrite the draft so that it:
 
 Return ONE JSON object only: {"reply": "the finished message"}.`;
 
-export function buildEditorPrompt(a: { name: string; draft: string; latest: string[]; sent: string[] }): string {
+export function buildEditorPrompt(a: { name: string; draft: string; latest: string[]; sent: string[]; edits?: LearnedEdit[] }): string {
   const clip = (t: string, n: number) => t.replace(/\s+/g, " ").trim().slice(0, n);
   return `PERSON: ${a.name}
 
 THEIR LATEST MESSAGE(S)
 ${a.latest.map((t) => `- ${clip(t, 1500)}`).join("\n")}
 
-ALREADY SENT IN THIS CONVERSATION (do not reuse its wording)
+${editsBlock(a.edits)}ALREADY SENT IN THIS CONVERSATION (do not reuse its wording)
 ${a.sent.length ? a.sent.map((t) => `- ${clip(t, 400)}`).join("\n") : "(nothing yet)"}
 
 DRAFT TO EDIT

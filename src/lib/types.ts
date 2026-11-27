@@ -151,7 +151,7 @@ export type IgLead = {
 
 export type IgMessage = { history_only?: boolean; id: string; lead_id: string; direction: "incoming" | "outgoing"; sender: "erika" | "michael"; body: string; sent_at: string; kind: string; analyzed: boolean; analysis_error: string | null; created_at: string };
 
-export type IgDraft = { id: string; lead_id: string; kind: "opener" | "reply" | "followup"; followup_number: number | null; body: string; status: "draft" | "copied" | "sent" | "superseded"; edited: boolean; contains_link: boolean; created_at: string };
+export type IgDraft = { id: string; lead_id: string; kind: "opener" | "reply" | "followup"; followup_number: number | null; body: string; status: "draft" | "copied" | "sent" | "superseded"; edited: boolean; contains_link: boolean; original_body?: string | null; created_at: string };
 
 export type Knowledge = { id: string; key: string; title: string; body: string; position: number };
 
