@@ -230,6 +230,14 @@ export default function ClientChat() {
     reloadClients();
   }
 
+  /** This chat needs no answer (for example Michael is already on a call with them). Clears the reply and Michael flags; a new message from them brings it back. */
+  async function noResponseNeeded() {
+    await supabase.from("reply_drafts").update({ status: "superseded" }).eq("client_id", id).in("status", ["draft", "copied"]);
+    await supabase.from("clients").update({ needs_reply: false, needs_michael: false, michael_resolved_at: new Date().toISOString(), marked_unread: false }).eq("id", id);
+    await load();
+    reloadClients();
+  }
+
   async function michaelResponded() {
     await supabase.from("clients").update({ needs_michael: false, michael_resolved_at: new Date().toISOString() }).eq("id", id);
     await load();
@@ -253,6 +261,7 @@ export default function ClientChat() {
           <p className="sub">{client.telegram_username ? `@${client.telegram_username} · ` : ""}{client.status}</p>
         </div>
         <div className="row">
+          {(client.needs_reply || client.needs_michael) && <button className="btn" onClick={noResponseNeeded} title="Remove this chat from the dashboard's response list. A new message from them brings it back.">No response needed</button>}
           <button className="btn" onClick={() => { setEd({ name: client.name, telegram_username: client.telegram_username || "", status: client.status, notes: (client as Client & { notes?: string }).notes || "" }); setEditOpen(true); }}>Edit details</button>
           <button className="btn" onClick={async () => {
             const archiving = client.status !== "Archived";

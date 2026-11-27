@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 /** Small right-click menu for a list row: mark the chat read or unread. */
-export function RowMenu({ x, y, unread, onToggle, onClose }: { x: number; y: number; unread: boolean; onToggle: () => void; onClose: () => void }) {
+export function RowMenu({ x, y, unread, onToggle, onNoResponse, onClose }: { x: number; y: number; unread: boolean; onToggle: () => void; onNoResponse?: () => void; onClose: () => void }) {
   useEffect(() => {
     const close = () => onClose();
     const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -20,6 +20,7 @@ export function RowMenu({ x, y, unread, onToggle, onClose }: { x: number; y: num
   return (
     <div className="row-menu" role="menu" style={{ left, top: y }} onClick={(e) => e.stopPropagation()}>
       <button role="menuitem" onClick={onToggle}>{unread ? "Mark as read" : "Mark as unread"}</button>
+      {onNoResponse && <button role="menuitem" onClick={onNoResponse}>No response needed</button>}
     </div>
   );
 }

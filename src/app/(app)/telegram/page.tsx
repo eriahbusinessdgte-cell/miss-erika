@@ -48,6 +48,14 @@ export default function TelegramClients() {
     setMenu(null);
     reloadPreviews();
   }
+  async function noResponse(id: string) {
+    const db = createClient();
+    await db.from("reply_drafts").update({ status: "superseded" }).eq("client_id", id).in("status", ["draft", "copied"]);
+    await db.from("clients").update({ needs_reply: false, needs_michael: false, michael_resolved_at: new Date().toISOString(), marked_unread: false }).eq("id", id);
+    setMenu(null);
+    await reloadClients();
+    reloadPreviews();
+  }
   const tz = settings?.timezone || "Asia/Manila";
   const quietDays = settings?.quiet_inactive_days ?? 6;
   const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: tz });
@@ -201,7 +209,7 @@ export default function TelegramClients() {
           </form>
         </div>
       )}
-      {menu && <RowMenu x={menu.x} y={menu.y} unread={!!previews[menu.id]?.unread} onToggle={() => toggleRead(menu.id)} onClose={() => setMenu(null)} />}
+      {menu && <RowMenu x={menu.x} y={menu.y} unread={!!previews[menu.id]?.unread} onToggle={() => toggleRead(menu.id)} onNoResponse={() => noResponse(menu.id)} onClose={() => setMenu(null)} />}
     </>
   );
 }
